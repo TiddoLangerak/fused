@@ -46,15 +46,8 @@ const fuse = new Fuse(mountPath,
         cb(0, files);
       });
     },
-    getattr: (path, cb) => {
-      $(cb, async() => {
-        const stat = await fs.stat(getAbsolutePath(path));
-        cb(0, stat);
-      });
-    },
     open: (path, flags, cb) => {
       $(cb, async() => {
-        console.log("open called");
         const handle = await fs.open(getAbsolutePath(path), flags);
         openFiles.set(handle.fd, handle);
         cb(0, handle.fd);
@@ -78,7 +71,6 @@ const fuse = new Fuse(mountPath,
       // TODO
     },
     release: (path, fd, cb) => {
-      console.log("Release");
       $(cb, async () => {
         const file = openFiles.get(fd);
         openFiles.delete(fd);
@@ -86,6 +78,30 @@ const fuse = new Fuse(mountPath,
           await file.close()
         }
         cb(0);
+      });
+    },
+    init: (cb) => {
+      cb(0);
+    },
+    access: (path, mode, cb) => {
+      // TODO: do we need to do something here?
+      cb(0);
+    },
+    // statfs(). Doesn't have a node equivalent
+    getattr: (path, cb) => {
+      $(cb, async() => {
+        const stat = await fs.stat(getAbsolutePath(path));
+        cb(0, stat);
+      });
+    },
+    fgetattr: (path, fd, cb) => {
+      $(cb, async() => {
+        const file = openFiles.get(fd);
+        if (file) {
+          cb(0, await file.stat());
+        } else {
+          cb(0, await fs.stat(getAbsolutePath(path)));
+        }
       });
     }
   },

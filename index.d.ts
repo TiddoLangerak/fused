@@ -15,7 +15,9 @@ declare module 'fuse-native' {
     open(path: string, flags: number, cb:CB<number>): void;
     read(path: string, fd: number, buffer: Buffer, length: number, position: number, cb: (bytesRead: number) => unknown): void;
     release(path: string, fd: number, cb: CB<never>): void;
-
+    init(cb: CB<never>): void;
+    access(path: string, mode: number, cb: CB<never>): void;
+    fgetattr(path: string, fd: number, cb: CB<Stat>): void;
   };
   export type Options = { debug: boolean, force: boolean, mkdir: boolean, autoUnmount: boolean };
   export default class Fuse {
