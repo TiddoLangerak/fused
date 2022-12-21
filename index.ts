@@ -45,8 +45,6 @@ function $<T>(cb: CB<T>, fn: () => Promise<T>) {
 }
 
 const openFiles: Map<number, FileHandle> = new Map();
-// TODO: figure out if we need to do something with open dirs. Seems like we don't have fds from them in node.
-
 let dirFdCount = 1;
 const openDirs: Map<number, Dir> = new Map();
 
@@ -229,7 +227,7 @@ const fuse = new Fuse(
 );
 
 fuse.mount(err => {
-  console.log("Err?", err);
+  console.log("Mounted, ready for action");
   if (err) {
     console.error("Couldn't mount", err);
     process.exit(-1);
