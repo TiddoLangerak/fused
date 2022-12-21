@@ -1,0 +1,22 @@
+{
+  "name": "fused",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.ts",
+  "type": "module",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "scripts": {
+    "start": "ts-node-esm index.ts"
+  },
+  "dependencies": {
+    "fuse-native": "^2.2.6"
+  },
+  "devDependencies": {
+    "@types/node": "^18.11.17",
+    "ts-node": "^10.9.1",
+    "typescript": "^4.9.4",
+    "typescript-language-server": "^2.2.0"
+  }
+}
