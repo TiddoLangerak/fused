@@ -4,8 +4,35 @@ import * as fs from 'node:fs/promises';
 import { FileHandle } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-const mountPath = resolve("./mnt");
-const sourcePath = resolve("./example");
+const args = process.argv.slice(2);
+if (args.length !== 2) {
+  console.error("Usage: fused <src> <workspace>");
+  process.exit(-1);
+}
+
+const sourcePath = resolve(args[0]);
+const mountPath = resolve(args[1]);
+
+let sourceIsDir;
+try {
+ sourceIsDir = (await fs.stat(sourcePath)).isDirectory();
+} catch (e) {
+  sourceIsDir = false;
+}
+if (!sourceIsDir) {
+  console.error("Source must be a folder");
+  process.exit(-1);
+}
+
+
+const enableDebug = !!process.env.FUSED_DEBUG || false;
+
+function debug(...args: any[]) {
+  if (enableDebug) {
+    console.log(...args);
+  }
+}
+
 
 function getAbsolutePath(pathSegment: string): string {
   const path = resolve(sourcePath, `./${pathSegment}`);
@@ -50,17 +77,21 @@ const openDirs: Map<number, Dir> = new Map();
 
 const handlers: Partial<Handlers> = {
   init: (cb) => {
+    debug("init");
     cb(0);
   },
   access: (path, mode, cb) => {
+    debug(`access ${path} (mode: ${mode})`);
     // TODO: do we need to do something here?
     cb(0);
   },
   // statfs(). Doesn't have a node equivalent
   getattr: (path, cb) => {
+    debug(`getattr ${path}`);
     $(cb,  () =>  fs.lstat(getAbsolutePath(path)));
   },
   fgetattr: (path, fd, cb) => {
+    debug(`fgetattr ${path} (fd: ${fd})`);
     $(cb, async() => {
       const file = openFiles.get(fd);
       if (file) {
@@ -71,11 +102,13 @@ const handlers: Partial<Handlers> = {
     });
   },
   flush(path, fd, cb) {
+    debug(`flush ${path} (fd: ${fd})`);
     // We need to flush uncommitted data to the OS here (not necessarily disk)
     // Since we don't keep things in memory, we can do nothing here.
     cb(0);
   },
   fsync(path, fd, datasync, cb) {
+    debug(`fsync ${path} (fd: ${fd}, datasync: ${datasync})`);
     $(cb, async() => {
       const file = openFiles.get(fd);
       if (file) {
@@ -91,14 +124,17 @@ const handlers: Partial<Handlers> = {
   },
   // fsyncdir: don't think we can do anything here?
   readdir: (path, cb) => {
+    debug(`readdir ${path}`);
     $(cb, () => fs.readdir(getAbsolutePath(path)));
   },
   truncate: (path, size, cb) => {
+    debug(`truncate ${path} (size: ${size})`);
     $(cb, async () => {
       fs.truncate(getAbsolutePath(path), size);
     });
   },
   ftruncate: (path, fd, size, cb) => {
+    debug(`ftruncate ${path} (fd: ${fd} size: ${size})`);
     $(cb, async () => {
       const file = openFiles.get(fd);
       if (file) {
@@ -109,15 +145,19 @@ const handlers: Partial<Handlers> = {
     });
   },
   readlink: (path, cb) => {
+    debug(`readlink ${path}`);
     $(cb, () => fs.readlink(getAbsolutePath(path)));
   },
   chown: (path, uid, gid, cb) => {
+    debug(`chown ${path} ${gid}:${uid}`);
     $(cb, () => fs.chown(getAbsolutePath(path), uid, gid));
   },
   chmod: (path, mode, cb) => {
+    debug(`chmod ${path} (mode: ${mode})`);
     $(cb, () => fs.chmod(getAbsolutePath(path), mode));
   },
   mknod: (path, mode, dev, cb) => {
+    debug(`mknod ${path} (mode: ${mode} dev: ${dev})`);
     // TODO: existance checking?
     $(cb, () => fs.writeFile(getAbsolutePath(path), Buffer.alloc(0), { mode }));
   },
@@ -127,9 +167,11 @@ const handlers: Partial<Handlers> = {
   //listxattr TODO: only osx, no native node support
   //removexattr TODO: only osx, no native node support
   open: (path, flags, cb) => {
+    debug(`open ${path} (flags: ${flags})`);
     $(cb, () => openFile(path, flags));
   },
   opendir: (path, flags, cb) => {
+    debug(`opendir ${path} (flags: ${flags})`);
     $(cb, async() => {
       const handle = await fs.opendir(getAbsolutePath(path));
       const fd = dirFdCount++;
@@ -138,6 +180,7 @@ const handlers: Partial<Handlers> = {
     });
   },
   read: (path, fd, buffer, length, position, cb) => {
+    debug(`read ${path} (fd: ${fd} length: ${length} position ${position}`);
     (async() => {
       try {
         const file = openFiles.get(fd);
@@ -155,6 +198,7 @@ const handlers: Partial<Handlers> = {
     // TODO
   },
   write: (path, fd, buffer, length, position, cb) => {
+    debug(`write ${path} (fd: ${fd} length: ${length} position ${position}`);
     (async() => {
       try {
         const file = openFiles.get(fd);
@@ -172,6 +216,7 @@ const handlers: Partial<Handlers> = {
     // TODO
   },
   release: (path, fd, cb) => {
+    debug(`release ${path} (fd: ${fd})`);
     $(cb, async () => {
       const file = openFiles.get(fd);
       openFiles.delete(fd);
@@ -181,6 +226,7 @@ const handlers: Partial<Handlers> = {
     });
   },
   releasedir: (path, fd, cb) => {
+    debug(`releasedir ${path} (fd: ${fd})`);
     $(cb, async() => {
       const dir = openDirs.get(fd);
       openDirs.delete(fd);
@@ -190,32 +236,40 @@ const handlers: Partial<Handlers> = {
     });
   },
   create: (path, mode, cb) => {
+    debug(`create ${path} (mode: ${mode})`);
     $(cb, async() => {
       await fs.writeFile(getAbsolutePath(path), Buffer.alloc(0), { mode });
       return await openFile(path, 'w')
     });
   },
   utimens: (path, atime, mtime, cb) => {
+    debug(`utimens ${path} (atime: ${atime} mtime: ${mtime})`);
     $(cb, () => fs.utimes(getAbsolutePath(path), atime, mtime));
   },
   unlink: (path, cb) => {
+    debug(`unlink ${path}`);
     $(cb, () => fs.unlink(getAbsolutePath(path)));
   },
   rename: (src, dest, cb) => {
+    debug(`rename ${src} -> ${dest}`);
     $(cb, () => fs.rename(getAbsolutePath(src), getAbsolutePath(dest)));
   },
   // TODO: link
   symlink: (target, path, cb) => {
+    debug(`symlink ${path} -> ${target}`);
     // Note that target should NOT be resolved here
     $(cb, () => fs.symlink(target, getAbsolutePath(path)));
   },
   link: (target, path, cb) => {
+    debug(`link ${path} -> ${target}`);
     $(cb, () => fs.link(getAbsolutePath(target), getAbsolutePath(path)));
   },
   mkdir: (path, mode, cb) => {
+    debug(`mkdir ${path} (mode: ${mode})`);
     $(cb, () => fs.mkdir(getAbsolutePath(path), { mode }));
   },
   rmdir: (path, cb) => {
+    debug(`rmdir ${path}`);
     $(cb, () => fs.rmdir(getAbsolutePath(path)));
   }
 };
