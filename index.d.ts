@@ -1,6 +1,7 @@
 declare module 'fuse-native' {
   type CB<T> = (returnCode: number, val?: T) => unknown;
   export type Handlers = {
+    readdir(path: string, cb: CB<string[]>): void;
 
   };
   export type Options = { debug: boolean, force: boolean, mkdir: boolean, autoUnmount: boolean };
