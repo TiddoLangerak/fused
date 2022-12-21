@@ -2,7 +2,9 @@ import Fuse, { CB, Handlers } from 'fuse-native';
 import { Dir } from 'node:fs';
 import * as fs from 'node:fs/promises';
 import { FileHandle } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { resolve, basename, dirname } from 'node:path';
+
+// TODO: clean up this monstrousity
 
 const args = process.argv.slice(2);
 if (args.length !== 2) {
@@ -89,11 +91,13 @@ const handlers: Partial<Handlers> = {
     debug("init");
     cb(0);
   },
+  /*
   access: (path, mode, cb) => {
     debug(`access ${path} (mode: ${mode})`);
     // TODO: do we need to do something here?
     cb(0);
   },
+  */
   // statfs(). Doesn't have a node equivalent
   getattr: (path, cb) => {
     debug(`getattr ${path}`);
@@ -139,7 +143,13 @@ const handlers: Partial<Handlers> = {
   // fsyncdir: don't think we can do anything here?
   readdir: (path, cb) => {
     debug(`readdir ${path}`);
-    $(cb, () => fs.readdir(getAbsolutePath(path)));
+    $(cb, async () => {
+      const fullPath = getAbsolutePath(path);
+      const realFiles = await fs.readdir(fullPath);
+      const fakeFiles = virtualFiles.get(fullPath)?.keys() || [] as string[];
+
+      return [...realFiles, ...fakeFiles];
+    });
   },
   truncate: (path, size, cb) => {
     debug(`truncate ${path} (size: ${size})`);
@@ -295,10 +305,11 @@ const handlers: Partial<Handlers> = {
   }
 };
 
+// TODO: probably can overlay with nonempty!
 const fuse = new Fuse(
   mountPath,
   handlers,
-  { force: true, mkdir: true, autoUnmount: true }
+  { force: true, mkdir: true, autoUnmount: true, defaultPermissions: true, allowOther: true }
 );
 
 fuse.mount(err => {
@@ -317,5 +328,33 @@ process.on('SIGINT', (code) => {
     }
     process.exit(0);
   });
+});
+
+
+type FileContent = string;
+
+type VirtualFile = {
+  path: string,
+  load(): FileContent,
+  write(f: FileContent): unknown,
+}
+
+// dir -> filename -> file
+const virtualFiles : Map<string, Map<string, VirtualFile>> = new Map();;
+
+function registerVirtualFile(file: VirtualFile) {
+  const fullPath = getAbsolutePath(file.path);
+  const filename = basename(fullPath);
+  const dir = dirname(fullPath);
+  if (!virtualFiles.has(dir)) {
+    virtualFiles.set(dir, new Map());
+  }
+  virtualFiles.get(dir)!.set(filename, file);
+}
+
+registerVirtualFile({
+  path: 'virtual.virt',
+  load() { throw new Error("TODO"); },
+  write(f: FileContent) {}
 });
 

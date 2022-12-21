@@ -39,7 +39,14 @@ declare module 'fuse-native' {
     mkdir(path: string, mode: number, cb: CB<void>): void;
     rmdir(path: string, cb: CB<void>): void;
   };
-  export type Options = { debug: boolean, force: boolean, mkdir: boolean, autoUnmount: boolean };
+  export type Options = {
+    debug: boolean,
+    force: boolean,
+    mkdir: boolean,
+    autoUnmount: boolean ,
+    defaultPermissions: true,
+    allowOther: true
+  };
   export default class Fuse {
     static ENOENT: number;
     static EBADF: number;
