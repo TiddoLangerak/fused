@@ -35,6 +35,9 @@ declare module 'fuse-native' {
     unlink(path: string, cb: CB<void>): void;
     rename(src: string, dest: string, cb: CB<void>): void;
     symlink(src: string, dest: string, cb: CB<void>): void;
+    link(target: string, path: string, cb: CB<void>): void;
+    mkdir(path: string, mode: number, cb: CB<void>): void;
+    rmdir(path: string, cb: CB<void>): void;
   };
   export type Options = { debug: boolean, force: boolean, mkdir: boolean, autoUnmount: boolean };
   export default class Fuse {

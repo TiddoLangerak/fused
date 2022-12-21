@@ -208,7 +208,17 @@ const handlers: Partial<Handlers> = {
   },
   // TODO: link
   symlink: (target, path, cb) => {
+    // Note that target should NOT be resolved here
     $(cb, () => fs.symlink(target, getAbsolutePath(path)));
+  },
+  link: (target, path, cb) => {
+    $(cb, () => fs.link(getAbsolutePath(target), getAbsolutePath(path)));
+  },
+  mkdir: (path, mode, cb) => {
+    $(cb, () => fs.mkdir(getAbsolutePath(path), { mode }));
+  },
+  rmdir: (path, cb) => {
+    $(cb, () => fs.rmdir(getAbsolutePath(path)));
   }
 };
 
