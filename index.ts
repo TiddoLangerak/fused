@@ -1,5 +1,6 @@
 import Fuse, { CB } from 'fuse-native';
 import * as fs from 'node:fs/promises';
+import { FileHandle } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 const mountPath = resolve("./mnt");
@@ -35,6 +36,8 @@ function $<T>(cb: CB<T>, fn: () => Promise<unknown>) {
   })();
 }
 
+const openFiles: Map<number, FileHandle> = new Map();
+
 const fuse = new Fuse(mountPath,
   {
     readdir: (path, cb) => {
@@ -49,6 +52,42 @@ const fuse = new Fuse(mountPath,
         cb(0, stat);
       });
     },
+    open: (path, flags, cb) => {
+      $(cb, async() => {
+        console.log("open called");
+        const handle = await fs.open(getAbsolutePath(path), flags);
+        openFiles.set(handle.fd, handle);
+        cb(0, handle.fd);
+      });
+    },
+    read: (path, fd, buffer, length, position, cb) => {
+      (async() => {
+        try {
+          const file = openFiles.get(fd);
+          if (file) {
+            const { bytesRead } = await file.read(buffer, 0, length, position);
+            cb(bytesRead);
+          } else {
+            cb(0);
+          }
+        } catch (e) {
+          console.error("Read error", e);
+          cb(0);
+        }
+      })();
+      // TODO
+    },
+    release: (path, fd, cb) => {
+      console.log("Release");
+      $(cb, async () => {
+        const file = openFiles.get(fd);
+        openFiles.delete(fd);
+        if (file) {
+          await file.close()
+        }
+        cb(0);
+      });
+    }
   },
   { force: true, mkdir: true, autoUnmount: true });
 

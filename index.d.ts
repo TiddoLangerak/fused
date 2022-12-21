@@ -12,6 +12,9 @@ declare module 'fuse-native' {
   export type Handlers = {
     readdir(path: string, cb: CB<string[]>): void;
     getattr(path: string, cb: CB<Stat>): void;
+    open(path: string, flags: number, cb:CB<number>): void;
+    read(path: string, fd: number, buffer: Buffer, length: number, position: number, cb: (bytesRead: number) => unknown): void;
+    release(path: string, fd: number, cb: CB<never>): void;
 
   };
   export type Options = { debug: boolean, force: boolean, mkdir: boolean, autoUnmount: boolean };
