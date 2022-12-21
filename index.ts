@@ -228,7 +228,6 @@ const fuse = new Fuse(
   { force: true, mkdir: true, autoUnmount: true }
 );
 
-// TODO: how do symlinks work? Currently they're shown as files.
 fuse.mount(err => {
   console.log("Err?", err);
   if (err) {
