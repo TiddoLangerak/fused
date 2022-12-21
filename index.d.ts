@@ -10,19 +10,30 @@ declare module 'fuse-native' {
     gid: number
   };
   export type Handlers = {
-    readdir(path: string, cb: CB<string[]>): void;
     getattr(path: string, cb: CB<Stat>): void;
     open(path: string, flags: number, cb:CB<number>): void;
     read(path: string, fd: number, buffer: Buffer, length: number, position: number, cb: (bytesRead: number) => unknown): void;
-    release(path: string, fd: number, cb: CB<never>): void;
+    release(path: string, fd: number, cb: CB<void>): void;
     init(cb: CB<never>): void;
-    access(path: string, mode: number, cb: CB<never>): void;
+    access(path: string, mode: number, cb: CB<void>): void;
     fgetattr(path: string, fd: number, cb: CB<Stat>): void;
+    fsync(path: string, fd: number, datasync: boolean, cb: CB<void>): void;
+    flush(path: string, fd: number, cb: CB<void>): void;
+    fsyncdir(path: string, fd: number, datasync: boolean, cb: CB<void>): void;
+    readdir(path: string, cb: CB<string[]>): void;
+    truncate(path: string, size: number, cb: CB<void>): void;
+    ftruncate(path: string, fd: number, size: number, cb: CB<void>): void;
+    readlink(path: string, cb: CB<string>): void;
+    chown(path: string, uid: number, gid: number, cb: CB<void>): void;
+    chmod(path: string, mode: number, cb: CB<void>): void;
+    mknod(path: string, mode: number, dev: string, cb: CB<void>): void;
+    opendir(path: string, flags: number, cb: CB<number | void>): void;
+    write(path: string, fd: number, buffer: Buffer, length: number, position: number, cb: CB<number>): void;
   };
   export type Options = { debug: boolean, force: boolean, mkdir: boolean, autoUnmount: boolean };
   export default class Fuse {
     static ENOENT: number;
-    constructor(mnt: string, handlers: Handlers, opts?: Partial<Options>)
+    constructor(mnt: string, handlers: Partial<Handlers>, opts?: Partial<Options>)
     mount(cb: (err: any) => unknown): unknown;
     static unmount(mnt: string, cb: (err: any) => unknown): unknown;
   }

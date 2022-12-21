@@ -1,4 +1,5 @@
 import Fuse, { CB } from 'fuse-native';
+import { Dir } from 'node:fs';
 import * as fs from 'node:fs/promises';
 import { FileHandle } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -26,10 +27,11 @@ function handleError(e: any): number {
   }
 }
 
-function $<T>(cb: CB<T>, fn: () => Promise<unknown>) {
+function $<T>(cb: CB<T>, fn: () => Promise<T>) {
   (async() => {
     try {
-      await fn();
+      const res = await fn();
+      cb(0, res);
     } catch (e) {
       cb(handleError(e));
     }
@@ -37,20 +39,113 @@ function $<T>(cb: CB<T>, fn: () => Promise<unknown>) {
 }
 
 const openFiles: Map<number, FileHandle> = new Map();
+// TODO: figure out if we need to do something with open dirs. Seems like we don't have fds from them in node.
+
+let dirFdCount = 1;
+const openDirs: Map<number, Dir> = new Map();
 
 const fuse = new Fuse(mountPath,
   {
-    readdir: (path, cb) => {
-      $(cb, async() => {
-        const files = await fs.readdir(getAbsolutePath(path));
-        cb(0, files);
+    release: (path, fd, cb) => {
+      $(cb, async () => {
+        const file = openFiles.get(fd);
+        openFiles.delete(fd);
+        if (file) {
+          await file.close()
+        }
       });
     },
+    init: (cb) => {
+      cb(0);
+    },
+    access: (path, mode, cb) => {
+      // TODO: do we need to do something here?
+      cb(0);
+    },
+    // statfs(). Doesn't have a node equivalent
+    getattr: (path, cb) => {
+      $(cb, () => fs.stat(getAbsolutePath(path)));
+    },
+    fgetattr: (path, fd, cb) => {
+      $(cb, async() => {
+        const file = openFiles.get(fd);
+        if (file) {
+          return await file.stat();
+        } else {
+          return await fs.stat(getAbsolutePath(path));
+        }
+      });
+    },
+    flush(path, fd, cb) {
+      // We need to flush uncommitted data to the OS here (not necessarily disk)
+      // Since we don't keep things in memory, we can do nothing here.
+      cb(0);
+    },
+    fsync(path, fd, datasync, cb) {
+      $(cb, async() => {
+        const file = openFiles.get(fd);
+        if (file) {
+          if (datasync) {
+            await file.datasync();
+          } else {
+            await file.sync();
+          }
+        } else {
+          throw new Error("File not open"); // TODO: better error
+        }
+      });
+    },
+    // fsyncdir: don't think we can do anything here?
+    readdir: (path, cb) => {
+      $(cb, () => fs.readdir(getAbsolutePath(path)));
+    },
+    truncate: (path, size, cb) => {
+      $(cb, async () => {
+        fs.truncate(getAbsolutePath(path), size);
+      });
+    },
+    ftruncate: (path, fd, size, cb) => {
+      $(cb, async () => {
+        const file = openFiles.get(fd);
+        if (file) {
+          file.truncate(size);
+        } else {
+          throw new Error("file not open"); // TODO: better error
+        }
+      });
+    },
+    readlink: (path, cb) => {
+      console.log("Read link", path);
+      $(cb, () => fs.readlink(getAbsolutePath(path)));
+    },
+    chown: (path, uid, gid, cb) => {
+      $(cb, () => fs.chown(getAbsolutePath(path), uid, gid));
+    },
+    chmod: (path, mode, cb) => {
+      $(cb, () => fs.chmod(getAbsolutePath(path), mode));
+    },
+    mknod: (path, mode, dev, cb) => {
+      // TODO: existance checking?
+      $(cb, () => fs.writeFile(getAbsolutePath(path), Buffer.alloc(0), { mode }));
+    },
+    //mknod TODO: not sure how to implement this, or if it's needed.
+    //setxattr TODO: only osx, no native node support
+    //getxattr TODO: only osx, no native node support
+    //listxattr TODO: only osx, no native node support
+    //removexattr TODO: only osx, no native node support
     open: (path, flags, cb) => {
       $(cb, async() => {
         const handle = await fs.open(getAbsolutePath(path), flags);
         openFiles.set(handle.fd, handle);
-        cb(0, handle.fd);
+        return handle.fd;
+      });
+    },
+    opendir: (path, flags, cb) => {
+      $(cb, async() => {
+        const handle = await fs.opendir(getAbsolutePath(path));
+        const fd = dirFdCount++;
+        openDirs.set(fd, handle);
+        return fd;
       });
     },
     read: (path, fd, buffer, length, position, cb) => {
@@ -70,43 +165,29 @@ const fuse = new Fuse(mountPath,
       })();
       // TODO
     },
-    release: (path, fd, cb) => {
-      $(cb, async () => {
-        const file = openFiles.get(fd);
-        openFiles.delete(fd);
-        if (file) {
-          await file.close()
+    write: (path, fd, buffer, length, position, cb) => {
+      console.log("Write");
+      (async() => {
+        try {
+          const file = openFiles.get(fd);
+          if (file) {
+            const { bytesWritten } = await file.write(buffer, 0, length, position);
+            cb(bytesWritten);
+          } else {
+            cb(0);
+          }
+        } catch (e) {
+          console.error("Write error", e);
+          cb(0);
         }
-        cb(0);
-      });
+      })();
+      // TODO
     },
-    init: (cb) => {
-      cb(0);
-    },
-    access: (path, mode, cb) => {
-      // TODO: do we need to do something here?
-      cb(0);
-    },
-    // statfs(). Doesn't have a node equivalent
-    getattr: (path, cb) => {
-      $(cb, async() => {
-        const stat = await fs.stat(getAbsolutePath(path));
-        cb(0, stat);
-      });
-    },
-    fgetattr: (path, fd, cb) => {
-      $(cb, async() => {
-        const file = openFiles.get(fd);
-        if (file) {
-          cb(0, await file.stat());
-        } else {
-          cb(0, await fs.stat(getAbsolutePath(path)));
-        }
-      });
-    }
+
   },
   { force: true, mkdir: true, autoUnmount: true });
 
+// TODO: how do symlinks work? Currently they're shown as files.
 fuse.mount(err => {
   console.log("Err?", err);
   if (err) {
