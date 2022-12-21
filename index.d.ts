@@ -1,7 +1,13 @@
 declare module 'fuse-native' {
-  export type Handlers = unknown;
-  export type Options = unknown;
+  type CB<T> = (returnCode: number, val?: T) => unknown;
+  export type Handlers = {
+
+  };
+  export type Options = { debug: boolean, force: boolean, mkdir: boolean, autoUnmount: boolean };
   export default class Fuse {
-    constructor(mnt: string, handlers: Handlers, opts?: Options)
+    static ENOENT: unknown;
+    constructor(mnt: string, handlers: Handlers, opts?: Partial<Options>)
+    mount(cb: (err: any) => unknown): unknown;
+    static unmount(mnt: string, cb: (err: any) => unknown): unknown;
   }
 }
