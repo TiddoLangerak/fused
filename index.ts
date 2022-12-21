@@ -46,9 +46,10 @@ function getAbsolutePath(pathSegment: string): string {
 }
 
 async function openFile(path: string, flags: number | string) {
-    const handle = await fs.open(getAbsolutePath(path), flags);
-    openFiles.set(handle.fd, handle);
-    return handle.fd;
+  const handle = await fs.open(getAbsolutePath(path), flags);
+  const fd = fileFdCount++;
+  openFiles.set(fd, handle);
+  return fd;
 }
 
 function handleError(e: any): number {
@@ -71,9 +72,19 @@ function $<T>(cb: CB<T>, fn: () => Promise<T>) {
   })();
 }
 
+let fileFdCount = 1;
 const openFiles: Map<number, FileHandle> = new Map();
 let dirFdCount = 1;
 const openDirs: Map<number, Dir> = new Map();
+
+async function getOrOpenFile(path: string, fd: number, mode: number): Promise<FileHandle | undefined> {
+  if (!fd || !openFiles.has(fd)) {
+    console.warn(`No file open for ${path}`);
+    fd = await openFile(path, mode);
+  }
+  const file = openFiles.get(fd);
+  return file;
+}
 
 const handlers: Partial<Handlers> = {
   init: (cb) => {
@@ -93,7 +104,7 @@ const handlers: Partial<Handlers> = {
   fgetattr: (path, fd, cb) => {
     debug(`fgetattr ${path} (fd: ${fd})`);
     $(cb, async() => {
-      const file = openFiles.get(fd);
+      const file = await getOrOpenFile(path, fd, fs.constants.O_RDONLY);
       if (file) {
         return await file.stat();
       } else {
@@ -110,7 +121,7 @@ const handlers: Partial<Handlers> = {
   fsync(path, fd, datasync, cb) {
     debug(`fsync ${path} (fd: ${fd}, datasync: ${datasync})`);
     $(cb, async() => {
-      const file = openFiles.get(fd);
+      const file = await getOrOpenFile(path, fd, fs.constants.O_RDWR);
       if (file) {
         if (datasync) {
           await file.datasync();
@@ -118,7 +129,12 @@ const handlers: Partial<Handlers> = {
           await file.sync();
         }
       } else {
-        throw new Error("File not open"); // TODO: better error
+        console.warn(`Trying to fsync a file that isn't open. Path: ${path}. Fd: ${fd}`);
+        /*throw {
+          errno: Fuse.EBADF,
+          msg: `File not open. FD: ${fd}. Path: ${path}`
+        };*/
+        //throw new Error(`File not open. FD: ${fd}. Path: ${path}`); // TODO: better error
       }
     });
   },
@@ -136,7 +152,7 @@ const handlers: Partial<Handlers> = {
   ftruncate: (path, fd, size, cb) => {
     debug(`ftruncate ${path} (fd: ${fd} size: ${size})`);
     $(cb, async () => {
-      const file = openFiles.get(fd);
+      const file = await getOrOpenFile(path, fd, fs.constants.O_WRONLY);
       if (file) {
         file.truncate(size);
       } else {
@@ -183,15 +199,16 @@ const handlers: Partial<Handlers> = {
     debug(`read ${path} (fd: ${fd} length: ${length} position ${position}`);
     (async() => {
       try {
-        const file = openFiles.get(fd);
+        const file = await getOrOpenFile(path, fd, fs.constants.O_RDONLY);
         if (file) {
+          console.log("Has file");
           const { bytesRead } = await file.read(buffer, 0, length, position);
           cb(bytesRead);
         } else {
           cb(0);
         }
       } catch (e) {
-        console.error("Read error", e);
+        console.error(`Read error for file ${path} (fd: ${fd})`, e);
         cb(0);
       }
     })();
@@ -201,7 +218,7 @@ const handlers: Partial<Handlers> = {
     debug(`write ${path} (fd: ${fd} length: ${length} position ${position}`);
     (async() => {
       try {
-        const file = openFiles.get(fd);
+        const file = await getOrOpenFile(path, fd, fs.constants.O_WRONLY);
         if (file) {
           const { bytesWritten } = await file.write(buffer, 0, length, position);
           cb(bytesWritten);
@@ -235,13 +252,20 @@ const handlers: Partial<Handlers> = {
       }
     });
   },
-  create: (path, mode, cb) => {
+  /*
+   * TODO: _something_ is wrong with this implementation, but we don't really need it anyway.
+   * Without create, users will use mknod + open, which are working as expected.
+   *
+   * create: (path, mode, cb) => {
     debug(`create ${path} (mode: ${mode})`);
     $(cb, async() => {
       await fs.writeFile(getAbsolutePath(path), Buffer.alloc(0), { mode });
-      return await openFile(path, 'w')
+      const fd = await openFile(path, mode)
+      debug(`Created ${path}, fd: ${fd}`);
+      return fd;
     });
   },
+  */
   utimens: (path, atime, mtime, cb) => {
     debug(`utimens ${path} (atime: ${atime} mtime: ${mtime})`);
     $(cb, () => fs.utimes(getAbsolutePath(path), atime, mtime));

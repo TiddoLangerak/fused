@@ -42,6 +42,7 @@ declare module 'fuse-native' {
   export type Options = { debug: boolean, force: boolean, mkdir: boolean, autoUnmount: boolean };
   export default class Fuse {
     static ENOENT: number;
+    static EBADF: number;
     constructor(mnt: string, handlers: Partial<Handlers>, opts?: Partial<Options>)
     mount(cb: (err: any) => unknown): unknown;
     static unmount(mnt: string, cb: (err: any) => unknown): unknown;
