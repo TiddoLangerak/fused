@@ -29,6 +29,12 @@ declare module 'fuse-native' {
     mknod(path: string, mode: number, dev: string, cb: CB<void>): void;
     opendir(path: string, flags: number, cb: CB<number | void>): void;
     write(path: string, fd: number, buffer: Buffer, length: number, position: number, cb: CB<number>): void;
+    releasedir(path: string, fd: number, cb: CB<void>): void;
+    create(path: string, mode: number, cb: CB<number>): void;
+    utimens(path: string, atime: number, mtime: number, cb: CB<void>): void;
+    unlink(path: string, cb: CB<void>): void;
+    rename(src: string, dest: string, cb: CB<void>): void;
+    symlink(src: string, dest: string, cb: CB<void>): void;
   };
   export type Options = { debug: boolean, force: boolean, mkdir: boolean, autoUnmount: boolean };
   export default class Fuse {
