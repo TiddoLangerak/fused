@@ -27,5 +27,10 @@ export async function getProgramOpts(): Promise<ProgramOpts> {
     process.exit(-1);
   }
 
+  if (sourcePath.startsWith(mountPath) || mountPath.startsWith(sourcePath)) {
+    console.error("Source and mount paths cannot overlap.");
+    process.exit(-1);
+  }
+
   return {sourcePath, mountPath};
 }
