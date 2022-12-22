@@ -8,7 +8,8 @@
   "author": "",
   "license": "ISC",
   "scripts": {
-    "start": "ts-node-esm index.ts"
+    "start": "ts-node-esm index.ts",
+    "configure": "sudo npx fuse-native configure"
   },
   "dependencies": {
     "fuse-native": "^2.2.6"

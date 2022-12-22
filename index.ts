@@ -305,11 +305,10 @@ const handlers: Partial<Handlers> = {
   }
 };
 
-// TODO: probably can overlay with nonempty!
 const fuse = new Fuse(
   mountPath,
   handlers,
-  { force: true, mkdir: true, autoUnmount: true, defaultPermissions: true, allowOther: true }
+  { force: true, mkdir: true, autoUnmount: true, defaultPermissions: true }
 );
 
 fuse.mount(err => {

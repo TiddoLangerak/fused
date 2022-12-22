@@ -44,8 +44,8 @@ declare module 'fuse-native' {
     force: boolean,
     mkdir: boolean,
     autoUnmount: boolean ,
-    defaultPermissions: true,
-    allowOther: true
+    defaultPermissions: boolean,
+    allowOther: boolean, // NOTE: this likely won't work
   };
   export default class Fuse {
     static ENOENT: number;
