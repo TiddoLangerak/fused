@@ -2,29 +2,29 @@ import { Dir } from 'node:fs';
 import { open, opendir, FileHandle } from 'node:fs/promises';
 import { debug } from './debug.js';
 import { ProgramOpts } from './opts.js';
-import { resolver } from './path.js';
+import { resolver, Resolver } from './path.js';
 
 export type Fd = number;
 
 export class FusedFs {
-  getAbsolutePath: (segment: string) => string;
+  #getAbsolutePath: Resolver;
   #openFiles: Map<Fd, FileHandle> = new Map();
   #openDirs: Map<Fd, Dir> = new Map();
   #dirFdCount: Fd = 1;
 
   constructor(opts: ProgramOpts) {
-    this.getAbsolutePath = resolver(opts);
+    this.#getAbsolutePath = resolver(opts);
   }
 
   async openDir(path: string): Promise<Fd> {
-      const handle = await opendir(this.getAbsolutePath(path));
+      const handle = await opendir(this.#getAbsolutePath(path));
       const fd = this.#dirFdCount++;
       this.#openDirs.set(fd, handle);
       return fd;
   }
 
   async openFile(path: string, flags: number | string): Promise<Fd> {
-    const handle = await open(this.getAbsolutePath(path), flags);
+    const handle = await open(this.#getAbsolutePath(path), flags);
     this.#openFiles.set(handle.fd, handle);
     return handle.fd;
   }
