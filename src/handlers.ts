@@ -1,3 +1,5 @@
+/// For whatever reason the reference is needed for the language-server
+/// <reference path="../types/fuse-native.d.ts" />
 import Fuse, { CB, Handlers } from "fuse-native";
 import { debug } from "./debug.js";
 import { FusedFs } from "./fusedFs.js";

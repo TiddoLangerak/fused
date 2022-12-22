@@ -1,5 +1,3 @@
-/// For whatever reason the reference is needed for the language-server
-/// <reference path="../types/fuse-native.d.ts" />
 import Fuse from 'fuse-native';
 import { getProgramOpts } from './opts.js';
 import { makeHandlers } from './handlers.js';
