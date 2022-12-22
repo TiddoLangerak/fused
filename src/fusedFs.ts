@@ -1,4 +1,6 @@
+import { Dir } from 'node:fs';
 import { open, FileHandle } from 'node:fs/promises';
+import { debug } from './debug.js';
 import { ProgramOpts } from './opts.js';
 import { resolver } from './path.js';
 
@@ -15,6 +17,14 @@ export class FusedFs {
     const handle = await open(this.getAbsolutePath(path), flags);
     this.#openFiles.set(handle.fd, handle);
     return handle.fd;
+  }
+
+  async getOrOpenFile(path: string, fd: number, mode: number): Promise<FileHandle | undefined> {
+    if (!fd || !this.isOpen(fd)) {
+      debug(`Warn: No file open for ${path}`);
+      fd = await this.openFile(path, mode);
+    }
+    return this.getFileHandle(fd);
   }
 
   getFileHandle(fd: Fd): FileHandle | undefined {

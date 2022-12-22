@@ -40,15 +40,6 @@ function $<T>(cb: CB<T>, fn: () => Promise<T>) {
 let dirFdCount = 1;
 const openDirs: Map<number, Dir> = new Map();
 
-async function getOrOpenFile(path: string, fd: number, mode: number): Promise<FileHandle | undefined> {
-  if (!fd || !fusedFs.isOpen(fd)) {
-    debug(`Warn: No file open for ${path}`);
-    fd = await fusedFs.openFile(path, mode);
-  }
-  const file = fusedFs.getFileHandle(fd);
-  return file;
-}
-
 const handlers: Partial<Handlers> = {
   init: (cb) => {
     debug("init");
@@ -69,7 +60,7 @@ const handlers: Partial<Handlers> = {
   fgetattr: (path, fd, cb) => {
     debug(`fgetattr ${path} (fd: ${fd})`);
     $(cb, async() => {
-      const file = await getOrOpenFile(path, fd, fs.constants.O_RDONLY);
+      const file = await fusedFs.getOrOpenFile(path, fd, fs.constants.O_RDONLY);
       if (file) {
         return await file.stat();
       } else {
@@ -86,7 +77,7 @@ const handlers: Partial<Handlers> = {
   fsync(path, fd, datasync, cb) {
     debug(`fsync ${path} (fd: ${fd}, datasync: ${datasync})`);
     $(cb, async() => {
-      const file = await getOrOpenFile(path, fd, fs.constants.O_RDWR);
+      const file = await fusedFs.getOrOpenFile(path, fd, fs.constants.O_RDWR);
       if (file) {
         if (datasync) {
           await file.datasync();
@@ -123,7 +114,7 @@ const handlers: Partial<Handlers> = {
   ftruncate: (path, fd, size, cb) => {
     debug(`ftruncate ${path} (fd: ${fd} size: ${size})`);
     $(cb, async () => {
-      const file = await getOrOpenFile(path, fd, fs.constants.O_WRONLY);
+      const file = await fusedFs.getOrOpenFile(path, fd, fs.constants.O_WRONLY);
       if (file) {
         file.truncate(size);
       } else {
@@ -170,7 +161,7 @@ const handlers: Partial<Handlers> = {
     debug(`read ${path} (fd: ${fd} length: ${length} position ${position}`);
     (async() => {
       try {
-        const file = await getOrOpenFile(path, fd, fs.constants.O_RDONLY);
+        const file = await fusedFs.getOrOpenFile(path, fd, fs.constants.O_RDONLY);
         if (file) {
           const { bytesRead } = await file.read(buffer, 0, length, position);
           cb(bytesRead);
@@ -188,7 +179,7 @@ const handlers: Partial<Handlers> = {
     debug(`write ${path} (fd: ${fd} length: ${length} position ${position}`);
     (async() => {
       try {
-        const file = await getOrOpenFile(path, fd, fs.constants.O_WRONLY);
+        const file = await fusedFs.getOrOpenFile(path, fd, fs.constants.O_WRONLY);
         if (file) {
           const { bytesWritten } = await file.write(buffer, 0, length, position);
           cb(bytesWritten);
