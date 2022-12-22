@@ -1,6 +1,6 @@
 declare module 'fuse-native' {
   export type CB<T> = (returnCode: number, val?: T) => unknown;
-  type Stat = {
+  export type Stat = {
     mtime: Date,
     atime: Date,
     ctime: Date,
