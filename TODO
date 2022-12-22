@@ -1,0 +1,19 @@
+
+TODONT:
+- `Nonempty` doesn't work, this hides the entire underlying file system
+    Original:
+    ```
+      With the `nonempty` option, we can overlay fuse on top of something else.
+
+      I've added support for nonempty in my own fork of fuse-native (npm credentials pending).
+
+      We can use this fork to test it out.
+
+      Ideally, we then only ever need to deal with virtual files :boom:
+
+      _however_ I'm quite skeptical that this works
+
+      >  Note that FUSE3 changelog states that: The -o nonempty mount point has been removed, mounting over non-empty directories is now always allowed. This brings the behavior of FUSE file systems in-line with the behavior of the regular mount command. File systems that do not want to allow mounting to non-empty directories should perform this check themselves before handing control to libfuse.
+
+      We might not need the fork
+    ```

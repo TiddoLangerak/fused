@@ -3,49 +3,15 @@ import { Dir } from 'node:fs';
 import * as fs from 'node:fs/promises';
 import { FileHandle } from 'node:fs/promises';
 import { resolve, basename, dirname } from 'node:path';
+import { debug } from './debug.js';
+import { getProgramOpts } from './opts.js';
+import { resolver } from './path.js';
 
 // TODO: clean up this monstrousity
+//
 
-const args = process.argv.slice(2);
-if (args.length !== 2) {
-  console.error("Usage: fused <src> <workspace>");
-  process.exit(-1);
-}
-
-const sourcePath = resolve(args[0]);
-const mountPath = resolve(args[1]);
-
-let sourceIsDir;
-try {
- sourceIsDir = (await fs.stat(sourcePath)).isDirectory();
-} catch (e) {
-  sourceIsDir = false;
-}
-if (!sourceIsDir) {
-  console.error("Source must be a folder");
-  process.exit(-1);
-}
-
-
-const enableDebug = !!process.env.FUSED_DEBUG || false;
-
-function debug(...args: any[]) {
-  if (enableDebug) {
-    console.log(...args);
-  }
-}
-
-
-function getAbsolutePath(pathSegment: string): string {
-  const path = resolve(sourcePath, `./${pathSegment}`);
-  if (!path.startsWith(sourcePath)) {
-    throw new Error("Couldn't construct path: path is not a subpath of source");
-  }
-  if (path.startsWith(mountPath)) {
-    throw new Error("Recursive mounting. Not good");
-  }
-  return path;
-}
+const { sourcePath, mountPath } = await getProgramOpts();
+const getAbsolutePath = resolver(sourcePath, mountPath);
 
 async function openFile(path: string, flags: number | string) {
   const handle = await fs.open(getAbsolutePath(path), flags);
