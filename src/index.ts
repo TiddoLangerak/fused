@@ -1,23 +1,21 @@
+/// For whatever reason the reference is needed for the language-server
+/// <reference types="./index" />
 import Fuse, { CB, Handlers } from 'fuse-native';
 import { Dir } from 'node:fs';
 import * as fs from 'node:fs/promises';
 import { FileHandle } from 'node:fs/promises';
-import { resolve, basename, dirname } from 'node:path';
+import { basename, dirname } from 'node:path';
 import { debug } from './debug.js';
 import { getProgramOpts } from './opts.js';
 import { resolver } from './path.js';
+import { FusedFs } from './fusedFs.js';
 
 // TODO: clean up this monstrousity
 //
 
-const { sourcePath, mountPath } = await getProgramOpts();
-const getAbsolutePath = resolver(sourcePath, mountPath);
-
-async function openFile(path: string, flags: number | string) {
-  const handle = await fs.open(getAbsolutePath(path), flags);
-  openFiles.set(handle.fd, handle);
-  return handle.fd;
-}
+const opts = await getProgramOpts();
+const getAbsolutePath = resolver(opts.sourcePath, opts.mountPath);
+const fusedFs = new FusedFs(opts);
 
 function handleError(e: any): number {
   if (e.errno) {
@@ -39,16 +37,15 @@ function $<T>(cb: CB<T>, fn: () => Promise<T>) {
   })();
 }
 
-const openFiles: Map<number, FileHandle> = new Map();
 let dirFdCount = 1;
 const openDirs: Map<number, Dir> = new Map();
 
 async function getOrOpenFile(path: string, fd: number, mode: number): Promise<FileHandle | undefined> {
-  if (!fd || !openFiles.has(fd)) {
+  if (!fd || !fusedFs.isOpen(fd)) {
     debug(`Warn: No file open for ${path}`);
-    fd = await openFile(path, mode);
+    fd = await fusedFs.openFile(path, mode);
   }
-  const file = openFiles.get(fd);
+  const file = fusedFs.getFileHandle(fd);
   return file;
 }
 
@@ -158,7 +155,7 @@ const handlers: Partial<Handlers> = {
   //removexattr TODO: only osx, no native node support
   open: (path, flags, cb) => {
     debug(`open ${path} (flags: ${flags})`);
-    $(cb, () => openFile(path, flags));
+    $(cb, () => fusedFs.openFile(path, flags));
   },
   opendir: (path, flags, cb) => {
     debug(`opendir ${path} (flags: ${flags})`);
@@ -207,13 +204,7 @@ const handlers: Partial<Handlers> = {
   },
   release: (path, fd, cb) => {
     debug(`release ${path} (fd: ${fd})`);
-    $(cb, async () => {
-      const file = openFiles.get(fd);
-      openFiles.delete(fd);
-      if (file) {
-        await file.close()
-      }
-    });
+    $(cb, () => fusedFs.close(fd));
   },
   releasedir: (path, fd, cb) => {
     debug(`releasedir ${path} (fd: ${fd})`);
@@ -272,7 +263,7 @@ const handlers: Partial<Handlers> = {
 };
 
 const fuse = new Fuse(
-  mountPath,
+  opts.mountPath,
   handlers,
   { force: true, mkdir: true, autoUnmount: true, defaultPermissions: true }
 );
@@ -287,7 +278,7 @@ fuse.mount(err => {
 
 process.on('SIGINT', (code) => {
   // TODO: clean this up
-  Fuse.unmount(mountPath, (err) => {
+  Fuse.unmount(opts.mountPath, (err) => {
     if(err) {
       process.exit(-1);
     }

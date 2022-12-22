@@ -2,13 +2,13 @@
   "name": "fused",
   "version": "1.0.0",
   "description": "",
-  "main": "index.ts",
+  "main": "src/index.ts",
   "type": "module",
   "keywords": [],
   "author": "",
   "license": "ISC",
   "scripts": {
-    "start": "ts-node-esm index.ts",
+    "start": "ts-node-esm src/index.ts",
     "test": "jest"
   },
   "dependencies": {

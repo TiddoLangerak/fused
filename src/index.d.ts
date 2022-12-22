@@ -14,7 +14,7 @@ declare module 'fuse-native' {
     open(path: string, flags: number, cb:CB<number>): void;
     read(path: string, fd: number, buffer: Buffer, length: number, position: number, cb: (bytesRead: number) => unknown): void;
     release(path: string, fd: number, cb: CB<void>): void;
-    init(cb: CB<never>): void;
+    init(cb: CB<void>): void;
     access(path: string, mode: number, cb: CB<void>): void;
     fgetattr(path: string, fd: number, cb: CB<Stat>): void;
     fsync(path: string, fd: number, datasync: boolean, cb: CB<void>): void;

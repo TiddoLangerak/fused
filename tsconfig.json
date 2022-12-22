@@ -2,12 +2,12 @@
   "compilerOptions": {
     "target": "es2022",
     "lib": ["es2022"],
-    "module": "nodenext",
+    "module": "esnext",
     "moduleResolution": "nodenext",
-    "strict": true,
-    "esModuleInterop": true
+    "strict": true
   },
   "files": [
-    "./index.d.ts"
+    "src/**/*.d.ts",
+    "src/**/*.ts"
   ]
 }
