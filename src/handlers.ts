@@ -94,7 +94,7 @@ msg: `File not open. FD: ${fd}. Path: ${path}`
       $(cb, async () => {
         const fullPath = getAbsolutePath(path);
         const realFiles = await fs.readdir(fullPath);
-        const fakeFiles = virtualFs.list(path);
+        const fakeFiles = await virtualFs.list(path);
 
         return [...realFiles, ...fakeFiles];
       });
