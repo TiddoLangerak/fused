@@ -4,10 +4,16 @@
     "lib": ["es2022"],
     "module": "esnext",
     "moduleResolution": "nodenext",
-    "strict": true
+    "strict": true,
+    "typeRoots": [
+      "types",
+      "node_modules/@types"
+    ]
   },
+  "include": [
+    "types/*.d.ts"
+  ],
   "files": [
-    "src/**/*.d.ts",
     "src/**/*.ts"
   ]
 }

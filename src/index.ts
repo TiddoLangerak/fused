@@ -1,5 +1,5 @@
 /// For whatever reason the reference is needed for the language-server
-/// <reference types="./index" />
+/// <reference path="../types/fuse-native.d.ts" />
 import Fuse, { CB, Handlers } from 'fuse-native';
 import { Dir } from 'node:fs';
 import * as fs from 'node:fs/promises';
