@@ -13,7 +13,7 @@ export class FusedFs {
   #dirFdCount: Fd = 1;
 
   constructor(opts: ProgramOpts) {
-    this.getAbsolutePath = resolver(opts.sourcePath, opts.mountPath);
+    this.getAbsolutePath = resolver(opts);
   }
 
   async openDir(path: string): Promise<Fd> {

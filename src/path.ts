@@ -12,7 +12,12 @@ export class RecursiveMountingError extends Error {
   }
 }
 
-export const resolver = (sourcePath: string, mountPath: string) => (pathSegment: string) => {
+export type ResolverOpts = {
+  sourcePath: string;
+  mountPath: string;
+}
+
+export const resolver = ({ sourcePath, mountPath } : ResolverOpts) => (pathSegment: string) => {
   const path = resolve(sourcePath, `./${pathSegment}`);
   if (!path.startsWith(sourcePath)) {
     throw new PathNotInSourceError();
