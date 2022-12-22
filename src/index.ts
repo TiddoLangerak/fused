@@ -1,9 +1,7 @@
 /// For whatever reason the reference is needed for the language-server
 /// <reference path="../types/fuse-native.d.ts" />
 import Fuse, { CB, Handlers } from 'fuse-native';
-import { Dir } from 'node:fs';
 import * as fs from 'node:fs/promises';
-import { FileHandle } from 'node:fs/promises';
 import { basename, dirname } from 'node:path';
 import { debug } from './debug.js';
 import { getProgramOpts } from './opts.js';
@@ -36,9 +34,6 @@ function $<T>(cb: CB<T>, fn: () => Promise<T>) {
     }
   })();
 }
-
-let dirFdCount = 1;
-const openDirs: Map<number, Dir> = new Map();
 
 const handlers: Partial<Handlers> = {
   init: (cb) => {
@@ -150,12 +145,7 @@ const handlers: Partial<Handlers> = {
   },
   opendir: (path, flags, cb) => {
     debug(`opendir ${path} (flags: ${flags})`);
-    $(cb, async() => {
-      const handle = await fs.opendir(getAbsolutePath(path));
-      const fd = dirFdCount++;
-      openDirs.set(fd, handle);
-      return fd;
-    });
+    $(cb, () => fusedFs.openDir(path));
   },
   read: (path, fd, buffer, length, position, cb) => {
     debug(`read ${path} (fd: ${fd} length: ${length} position ${position}`);
@@ -195,17 +185,11 @@ const handlers: Partial<Handlers> = {
   },
   release: (path, fd, cb) => {
     debug(`release ${path} (fd: ${fd})`);
-    $(cb, () => fusedFs.close(fd));
+    $(cb, () => fusedFs.closeFile(fd));
   },
   releasedir: (path, fd, cb) => {
     debug(`releasedir ${path} (fd: ${fd})`);
-    $(cb, async() => {
-      const dir = openDirs.get(fd);
-      openDirs.delete(fd);
-      if (dir) {
-        await dir.close();
-      }
-    });
+    $(cb, () => fusedFs.closeDir(fd));
   },
   /*
    * TODO: _something_ is wrong with this implementation, but we don't really need it anyway.
@@ -267,7 +251,7 @@ fuse.mount(err => {
   }
 });
 
-process.on('SIGINT', (code) => {
+process.on('SIGINT', (_code) => {
   // TODO: clean this up
   Fuse.unmount(opts.mountPath, (err) => {
     if(err) {
