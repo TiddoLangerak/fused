@@ -1,9 +1,9 @@
 import { PathNotInSourceError, RecursiveMountingError, resolver } from './path.js';
 
 describe('resolver', () => {
-  const source = '/my/src';
-  const mount = ' /their/mount';
-  const res = resolver(source, mount);
+  const sourcePath = '/my/src';
+  const mountPath = ' /their/mount';
+  const res = resolver({ sourcePath, mountPath });
 
   it('resolves paths relative to the source path', () => {
     expect(res('foo')).toBe('/my/src/foo');
@@ -19,7 +19,7 @@ describe('resolver', () => {
 
   it('errors when the resolved path is inside the mount path', () => {
     // Need to use same source and mount path here, otherwise we can never end up in this situation (we'd get a PathNotInSourceError instead)
-    const res = resolver(source, source);
+    const res = resolver({ sourcePath, mountPath: sourcePath });
     expect(() => res('./foo')).toThrow(RecursiveMountingError);
   });
 });
