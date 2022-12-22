@@ -1,4 +1,4 @@
-import { InMemoryFileHandler, VirtualFs } from "./virtualFs";
+import { VirtualFs, InMemoryFileHandler } from "./virtualfs";
 
 describe('virtualFs', () => {
   describe('list', () => {
