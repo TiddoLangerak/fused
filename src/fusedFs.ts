@@ -17,6 +17,7 @@ export class FusedFs implements Partial<FusedHandlers> {
     this.#getAbsolutePath = resolver(opts);
   }
 
+  init = () => { /* Nothing to do */ };
   getattr = (path: string) => lstat(this.#getAbsolutePath(path));
   fgetattr = async (path: string, fd: Fd) => {
     const file = await this.getOrOpenFile(path, fd, constants.O_RDONLY);
