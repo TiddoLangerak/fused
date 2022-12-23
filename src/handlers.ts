@@ -8,6 +8,8 @@ import { VirtualFs } from "./virtualfs/index.js";
 import { Awaitable } from "./awaitable.js";
 export { Stat };
 
+// TODO
+// - Interface should probably just get a list of Partial<FusedHandlers>
 export const makeHandlers = (opts: ProgramOpts, virtualFs: VirtualFs): Partial<Handlers> => {
   const fusedFs = new FusedFs(opts);
   return mapHandlers(fusedFs);
