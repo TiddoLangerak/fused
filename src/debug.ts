@@ -1,8 +1,5 @@
 const enableDebug = !!process.env.FUSED_DEBUG || false;
 
-export function debug(...args: any[]) {
-  if (enableDebug) {
-    console.log(...args);
-  }
-}
-
+export const debug = enableDebug
+  ? (...args: any[]) => console.log(...args)
+  : (...args: any[]) => {}
