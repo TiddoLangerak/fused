@@ -10,6 +10,8 @@ import { VirtualFileHandler } from './virtualFile.js';
 //    i. with real file backing
 //    ii. with virtual file backing
 // 3. Implement this interface a third time, delegating to ^. Prio should go to overlay.
+//    - Keep in mind that we should be careful to only implement those methods for which BOTH
+//      delegates have support.
 
 /**
  * Use cases:

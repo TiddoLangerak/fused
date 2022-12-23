@@ -1,7 +1,7 @@
 import Fuse from 'fuse-native';
 import { getProgramOpts } from './opts.js';
 import { makeHandlers } from './handlers.js';
-import { VirtualFs, FileContent } from './virtualFs.js';
+import { VirtualFs } from './virtualfs/index.js';
 
 const opts = await getProgramOpts();
 
