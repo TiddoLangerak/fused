@@ -2,29 +2,149 @@
 /// <reference path="../types/fuse-native.d.ts" />
 import Fuse, { CB, Handlers, Stat } from "fuse-native";
 import { debug } from "./debug.js";
-import { FusedFs } from "./fusedFs.js";
-import { ProgramOpts } from "./opts.js";
-import { VirtualFs } from "./virtualfs/index.js";
 import { Awaitable } from "./awaitable.js";
+import { FdMapper } from "./fd.js";
+import { VirtualFs } from "./virtualfs/index.js";
+import { RealFs } from "./realFs.js";
 export { Stat };
+export type Fd = number;
 
-// TODO
-// - Interface should probably just get a list of Partial<FusedHandlers>
-export const makeHandlers = (opts: ProgramOpts, virtualFs: VirtualFs): Partial<Handlers> => {
-  const fusedFs = new FusedFs(opts);
-  return mapHandlers(fusedFs);
+function both<A extends any[], F extends (...args: A) => Awaitable<void>>
+(a: F, b: F): ((...args: A) => Promise<void>) {
+  return (async (...args: A) => {
+    const aRes = a(...args);
+    const bRes = b(...args);
+    await aRes;
+    await bRes;
+  });
+}
+
+type PathHandlers = Omit<FusedHandlers, 'init'>;
+
+type FdHandlers = ('fgetattr' | 'flush' | 'fsync' | 'fsyncdir' | 'ftruncate' | 'read' | 'write' | 'release' | 'releasedir') & keyof PathHandlers;
+
+function virtualFirst<K extends keyof PathHandlers>(realFs: RealFs, virtualFs: VirtualFs, k: K): PathHandlers[K] {
+  return (async(...args: Parameters<PathHandlers[K]>) => {
+    const path: string = args[0];
+    if (await virtualFs.handles(path)) {
+      return await virtualFs[k].apply(virtualFs, args);
+    } else {
+      return await realFs[k].apply(realFs, args);
+    }
+  }) as unknown as PathHandlers[K];
+}
+
+function merge<A extends any[], R, F extends ((...args: A) => Awaitable<R[]>)>(a: F, b: F): (...args: A) => Promise<R[]> {
+  return async (...args: A) => {
+    const aRes = a(...args);
+    const bRes = b(...args);
+    return [...(await aRes), ...(await bRes)];
+  }
+}
+
+function linkVirtualFirst(realFs: RealFs, virtualFs: VirtualFs, link: 'symlink' | 'link') {
+  return (target: string, path: string) => {
+    if (virtualFs.handles(path)) {
+      return virtualFs[link](target, path);
+    } else {
+      return realFs[link](target, path);
+    }
+  }
+}
+
+export const makeHandlers = (realFs: RealFs, virtualFs: VirtualFs): Partial<Handlers> => {
+  const fdMapper = new FdMapper();
+
+  function fromFd<K extends FdHandlers>(realFs: RealFs, virtualFs: VirtualFs, k: K): PathHandlers[K] {
+    const delegate = virtualFirst(realFs, virtualFs, k);
+    return ((...args: Parameters<PathHandlers[K]>) => {
+      const [path, fd, ...rest] = args;
+      const downstream = fdMapper.get(fd);
+      if (downstream) {
+        const [handler, mappedFd] = downstream;
+        return handler[k].apply(handler, [path, mappedFd, ...rest]);
+      } else {
+        return delegate.apply(null, args);
+      }
+    }) as unknown as PathHandlers[K];
+  }
+
+  const mappers: { [K in keyof FusedHandlers]: ((r: RealFs, v: VirtualFs, k: K) => FusedHandlers[K]) } = {
+    init: (real, virtual) => both(real.init, virtual.init),
+    readdir: (real, virtual) => merge(real.readdir, virtual.readdir),
+    getattr: virtualFirst,
+    fgetattr: fromFd,
+    flush: fromFd,
+    fsync: fromFd,
+    chown: virtualFirst,
+    chmod: virtualFirst,
+    mknod: virtualFirst,
+    open: virtualFirst,
+    opendir: virtualFirst,
+    read: fromFd,
+    write: fromFd,
+    release: fromFd,
+    releasedir: fromFd,
+    utimens: virtualFirst,
+    unlink: virtualFirst,
+    rename: virtualFirst,
+    mkdir: virtualFirst,
+    rmdir: virtualFirst,
+    truncate: virtualFirst,
+    ftruncate: fromFd,
+    readlink: virtualFirst,
+    symlink: linkVirtualFirst,
+    link: linkVirtualFirst,
+  };
+
+  const combinedFs: FusedHandlers = Object.fromEntries(
+    Object.entries(mappers)
+      .map(([ key, val ]) => [key, val(realFs, virtualFs, key as never /* TODO hackhackhack */)])
+  ) as FusedHandlers;
+
+  /*
+  const combinedFs: FusedHandlers = {
+    init: both(realFs.init, virtualFs.init),
+    getattr: virtualFirst(realFs, virtualFs, 'getattr'),
+    fgetattr: fromFd(realFs, virtualFs, 'fgetattr'),
+    flush: fromFd(realFs, virtualFs, 'flush'),
+    fsync: fromFd(realFs, virtualFs, 'fsync'),
+    readdir: merge(realFs.readdir, virtualFs.readdir),
+    chown: virtualFirst(realFs, virtualFs, 'chown'),
+    chmod: virtualFirst(realFs, virtualFs, 'chmod'),
+    mknod: virtualFirst(realFs, virtualFs, 'mknod'),
+    open: virtualFirst(realFs, virtualFs, 'open'),
+    opendir: virtualFirst(realFs, virtualFs, 'opendir'),
+    read: fromFd(realFs, virtualFs, 'read'),
+    write: fromFd(realFs, virtualFs, 'write'),
+    release: fromFd(realFs, virtualFs, 'release'),
+    releasedir: fromFd(realFs, virtualFs, 'releasedir'),
+    utimens: virtualFirst(realFs, virtualFs, 'utimens'),
+    unlink: virtualFirst(realFs, virtualFs, 'unlink'),
+    rename: virtualFirst(realFs, virtualFs, 'rename'),
+    mkdir: virtualFirst(realFs, virtualFs, 'mkdir'),
+    rmdir: virtualFirst(realFs, virtualFs, 'rmdir'),
+    truncate: virtualFirst(realFs, virtualFs, 'truncate'),
+    ftruncate: fromFd(realFs, virtualFs, 'ftruncate'),
+    readlink: virtualFirst(realFs, virtualFs, 'readlink'),
+    symlink: linkVirtualFirst(realFs, virtualFs, 'symlink'),
+    link: linkVirtualFirst(realFs, virtualFs, 'symlink'),
+  };
+  */
+
+  return mapHandlers(combinedFs);
 };
 
+type SupportedOperations = Exclude<keyof Handlers, 'access' | 'create' | 'fsyncdir' | 'setxattr' | 'getxattr' | 'listxattr' | 'removexattr'>;
 // Read and write have a different signature
-type StandardHandlers = Exclude<keyof Handlers, 'read' | 'write'>;
+type StandardHandlers = Exclude<SupportedOperations, 'read' | 'write'>;
 const standardHandlers: StandardHandlers[] = [
     'init',
-    'access',
+    //'access', // TODO: we don't support access, because we rely on defaultPermissions. See: https://libfuse.github.io/doxygen/structfuse__operations.html#a2248db35e200265f7fb9a18348229858
     'getattr',
     'fgetattr',
     'flush',
     'fsync',
-    'fsyncdir',
     'readdir',
     'truncate',
     'ftruncate',
@@ -36,7 +156,6 @@ const standardHandlers: StandardHandlers[] = [
     'opendir',
     'release',
     'releasedir',
-    'create',
     'utimens',
     'unlink',
     'rename',
@@ -46,7 +165,7 @@ const standardHandlers: StandardHandlers[] = [
     'rmdir',
 ];
 
-function mapHandlers(f: Partial<FusedHandlers>): Partial<Handlers> {
+function mapHandlers(f: FusedHandlers): Partial<Handlers> {
   const handlers: Partial<Handlers> = {};
 
   standardHandlers.forEach(method => fusedHandlerToNativeHandler(handlers, f, method));
@@ -84,8 +203,8 @@ function mapHandlers(f: Partial<FusedHandlers>): Partial<Handlers> {
   return handlers;
 }
 
-function fusedHandlerToNativeHandler<K extends StandardHandlers>(h: Partial<Handlers>, f: Partial<FusedHandlers>, k: K) {
-  const fusedHandler : Function | undefined = f[k];
+function fusedHandlerToNativeHandler<K extends keyof FusedHandlers>(h: Partial<Handlers>, f: FusedHandlers, k: K) {
+  const fusedHandler = f[k];
   if (fusedHandler) {
     // Sorry, can't type it, need to do some funky stuff.
     // Essentially we're just passing the args on, except for the cb

@@ -15,6 +15,7 @@ export class InMemoryFileHandler implements VirtualFileHandler {
     this.#file = basename(path);
     console.log(this.#path, this.#folder, this.#file);
   }
+  // TODO: this is broken, we should also deal with prefixes. Otherwise /foo/bar/baz is unreachable if there's no /foo/bar on the real FS
   handles(folder: string, file?: string): Awaitable<boolean> {
     return folder === this.#folder && (!file || file === this.#file);
   }
