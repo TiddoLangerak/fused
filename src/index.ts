@@ -2,11 +2,12 @@ import Fuse from 'fuse-native';
 import { getProgramOpts } from './opts.js';
 import { makeHandlers } from './handlers.js';
 import { VirtualFs } from './virtualfs/index.js';
+import { RealFs } from './realFs.js';
 
 const opts = await getProgramOpts();
 
 const virtualFs = new VirtualFs();
-const handlers = makeHandlers(opts, virtualFs);
+const handlers = makeHandlers(new RealFs(opts), virtualFs);
 
 const fuse = new Fuse(
   opts.mountPath,
