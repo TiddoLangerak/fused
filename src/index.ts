@@ -16,6 +16,7 @@ const handler: VirtualFileHandler = {
     return 'other_with_fallback';
   },
   listFiles(folder) {
+    console.log("Listing files...");
     return ['phantom.virt'];
   },
   readFile(path) {

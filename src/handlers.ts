@@ -9,41 +9,75 @@ import { RealFs } from "./realFs.js";
 export { Stat };
 export type Fd = number;
 
-function both<A extends any[], F extends (...args: A) => Awaitable<void>>
-(a: F, b: F): ((...args: A) => Promise<void>) {
-  return (async (...args: A) => {
-    const aRes = a(...args);
-    const bRes = b(...args);
-    await aRes;
-    await bRes;
-  });
-}
-
-type PathHandlers = Omit<FusedHandlers, 'init'>;
-
-type FdHandlers = ('fgetattr' | 'flush' | 'fsync' | 'fsyncdir' | 'ftruncate' | 'read' | 'write' | 'release' | 'releasedir') & keyof PathHandlers;
 type AwaitableFunc<A extends any[], R> = ((...args: A) => Awaitable<R>);
 
-function merge<A extends any[], R, F extends ((...args: A) => Awaitable<R[]>)>(a: F, b: F): (...args: A) => Promise<R[]> {
-  return async (...args: A) => {
-    const aRes = a(...args);
-    const bRes = b(...args);
-    return [...(await aRes), ...(await bRes)];
+type Readdir = (path: string) => Awaitable<string[]>;
+
+function isEnoent(e: unknown): boolean {
+  return typeof e === 'object' && !!e && (e as any).errno === Fuse.ENOENT;
+}
+
+async function realWithFallback<A extends any[], R>(real: AwaitableFunc<A, R>, virtual: AwaitableFunc<A, R>, args: A): Promise<R> {
+  try {
+    return await real(...args);
+  } catch (e) {
+    if (isEnoent(e)) {
+      return await virtual(...args);
+    }
+    throw e;
   }
 }
 
 export const makeHandlers = (realFs: RealFs, virtualFs: VirtualFs): Partial<Handlers> => {
-  return mapHandlers(virtualFs);
+  //return mapHandlers(virtualFs);
   const fdMapper = new FdMapper<[FusedHandlers, Fd]>();
 
+function init(): (() => Promise<void>) {
+  return async () => { await Promise.all([ realFs.init(), virtualFs.init() ]); }
+}
+
+
+  function readdir(): Readdir {
+    async function ignoreEnoent(p: Awaitable<string[]>): Promise<string[]> {
+      try {
+        return await p;
+      } catch (e) {
+        if (isEnoent(e)) {
+          return [];
+        }
+        throw e;
+      }
+    }
+    return async (path: string): Promise<string[]> => {
+      switch (await virtualFs.handles(path)) {
+        case 'self':
+          return await virtualFs.readdir(path);
+        case 'other':
+          return await realFs.readdir(path);
+        case 'other_with_fallback':
+          // We want to ignore at most 1 enoent.
+          // If both enoent, then we abort
+          const vRes = virtualFs.readdir(path);
+          try {
+            const rRes = await realFs.readdir(path);
+            return [...rRes, ...(await ignoreEnoent(vRes))];
+          } catch (e) {
+            return await vRes;
+          }
+      }
+    }
+  }
   // TODO: clean up
   function virtualFirst<A extends [string, ...any[]], R>(real: AwaitableFunc<A, R>, virtual: AwaitableFunc<A, R>): AwaitableFunc<A, R> {
     return (async(...args) => {
       const path: string = args[0];
-      if (await virtualFs.handles(path)) {
-        return await virtual(...args);
-      } else {
-        return await real(...args);
+      switch (await virtualFs.handles(path)) {
+        case 'self':
+          return await virtual(...args);
+        case 'other':
+          return await real(...args);
+        case 'other_with_fallback':
+          return await realWithFallback(real, virtual, args);
       }
     });
   }
@@ -56,10 +90,11 @@ export const makeHandlers = (realFs: RealFs, virtualFs: VirtualFs): Partial<Hand
       if (downstream) {
         const [handler, mappedFd] = downstream;
         // TODO: not the nicest... perhaps we could improve?
+        const mappedArgs: A = [path, mappedFd, ...rest] as A;
         if (handler === realFs) {
-          return real(...args);
+          return real(...mappedArgs);
         } else {
-          return virtual(...args);
+          return virtual(...mappedArgs);
         }
       } else {
         return delegate(...args);
@@ -69,18 +104,21 @@ export const makeHandlers = (realFs: RealFs, virtualFs: VirtualFs): Partial<Hand
 
   type LinkFunc = (target: string, path: string) => Awaitable<void>;
   function linkVirtualFirst(real: LinkFunc, virtual: LinkFunc): LinkFunc {
-    return (target, path) => {
-      if (virtualFs.handles(path)) {
-        return virtual(target, path);
-      } else {
-        return real(target, path);
+    return async (target, path) => {
+      switch (await virtualFs.handles(path)) {
+        case 'self':
+          return virtual(target, path);
+        case 'other':
+          return real(target, path);
+        case 'other_with_fallback':
+          return realWithFallback(real, virtual, [target, path]);
       }
     }
   }
 
   const mappers: { [K in keyof FusedHandlers]: ((r: RealFs[K], v: VirtualFs[K]) => FusedHandlers[K]) } = {
-    init: both,
-    readdir: merge,
+    init: init,
+    readdir: readdir,
     getattr: virtualFirst,
     fgetattr: fromFd,
     flush: fromFd,
@@ -108,7 +146,8 @@ export const makeHandlers = (realFs: RealFs, virtualFs: VirtualFs): Partial<Hand
 
   const combinedFs: FusedHandlers = Object.fromEntries(
     Object.entries(mappers)
-      .map(([ key, val ]) => [key, val(realFs[key], virtualFs[key])])
+      // TODO: better typing
+      .map(([ key, val ]) => [key, val((realFs as any)[key], (virtualFs as any)[key])])
   ) as FusedHandlers;
 
   return mapHandlers(combinedFs);
