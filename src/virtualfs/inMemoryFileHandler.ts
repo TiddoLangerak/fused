@@ -1,6 +1,6 @@
 import { basename, dirname } from 'path';
-import { assert } from '../assert.js';
-import { FileContent, VirtualFileHandler } from "./virtualFile.js";
+import { assert, todo } from '../assert.js';
+import { FileContent, MiniStat, VirtualFileHandler } from "./virtualFile.js";
 import { Awaitable } from '../awaitable.js';
 
 export class InMemoryFileHandler implements VirtualFileHandler {
@@ -16,8 +16,12 @@ export class InMemoryFileHandler implements VirtualFileHandler {
     console.log(this.#path, this.#folder, this.#file);
   }
   // TODO: this is broken, we should also deal with prefixes. Otherwise /foo/bar/baz is unreachable if there's no /foo/bar on the real FS
-  handles(folder: string, file?: string): Awaitable<boolean> {
-    return folder === this.#folder && (!file || file === this.#file);
+  handlesFile(file: string): Awaitable<boolean> {
+    return file === this.#file;
+  }
+  handlesFolder(folder: string): Awaitable<boolean> {
+    // TODO: need to do subfolders
+    return folder === this.#folder;
   }
   listFiles(folder: string): Awaitable<string[]>{
     assert(folder === this.#folder, "Requesting static file from incorrect folder");
@@ -30,5 +34,8 @@ export class InMemoryFileHandler implements VirtualFileHandler {
   writeFile(path: string, content: FileContent): Awaitable<void> {
     assert(path === this.#path, "Writing static file with incorrect path");
     this.content = content;
+  }
+  stat(path: string): Awaitable<MiniStat | undefined> {
+    todo("Stat");
   }
 }

@@ -7,3 +7,7 @@ export function assert(c: boolean, msg: string): asserts c {
 export function todo(msg: string) : never {
   throw new Error(`Not yet implemented : ${msg}`);
 }
+
+export function unreachable(_: never): never {
+  throw new Error("We shouldn't have reached here");
+}

@@ -67,7 +67,7 @@ export class RealFs implements FusedHandlers {
     this.#openFiles.set(handle.fd, handle);
     return handle.fd;
   }
-  opendir = async(path: string) => {
+  opendir = async(path: string, flags: number) => {
     const handle = await opendir(this.#getAbsolutePath(path));
     const fd = this.#dirFdCount++;
     this.#openDirs.set(fd, handle);

@@ -8,12 +8,11 @@
     "typeRoots": [
       "types",
       "node_modules/@types"
-    ]
+    ],
+    "outDir": "./dist"
   },
   "include": [
-    "types/*.d.ts"
-  ],
-  "files": [
+    "types/*.d.ts",
     "src/**/*.ts"
   ]
 }

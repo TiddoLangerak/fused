@@ -1,4 +1,4 @@
-import { InMemoryFileHandler } from "./inMemoryFileHandler";
+import { InMemoryFileHandler } from "./inMemoryFileHandler.js";
 
 describe('inMemoryFileHandler', () => {
   const handler = new InMemoryFileHandler('/foo/bar/baz', '12345');
@@ -6,19 +6,16 @@ describe('inMemoryFileHandler', () => {
 
   describe('handles', () => {
     it('handles files with matching path', async () => {
-      expect(await handler.handles('/foo/bar')).toBe(true);
-      expect(await handler.handles('/foo/bar', 'baz')).toBe(true);
+      expect(await handler.handlesFile('/foo/bar/baz')).toBe(true);
     });
     it(`doesn't handle files with different paths`, async () => {
-      expect(await handler.handles('/foo')).toBe(false);
-      expect(await handler.handles('/foo/bar/baz')).toBe(false);
-      expect(await handler.handles('/bar')).toBe(false);
-      expect(await handler.handles('/foo/bar', 'foo')).toBe(false);
-      expect(await handler.handles('/foo', 'bar/baz')).toBe(false);
-      expect(await handler.handles('/foo', '/bar/baz')).toBe(false);
+      expect(await handler.handlesFile('/foo')).toBe(false);
+      expect(await handler.handlesFile('/foo/bar/baz/qux')).toBe(false);
+      expect(await handler.handlesFile('/bar')).toBe(false);
     });
   });
 
+  // TODO: handlesFolder
   describe('listFiles', () => {
     it('lists the file for the current folder', async () => {
       expect(await handler.listFiles('/foo/bar')).toEqual(['baz']);

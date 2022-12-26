@@ -28,9 +28,9 @@ function virtualFirst<K extends keyof PathHandlers>(realFs: RealFs, virtualFs: V
     const path: string = args[0];
     if (await virtualFs.handles(path)) {
       // TODO: get rid of any, if possible
-      return await (virtualFs[k] as any)(args);
+      return await (virtualFs[k] as any)(...args);
     } else {
-      return await (realFs[k] as any)(args);
+      return await (realFs[k] as any)(...args);
     }
   }) as unknown as PathHandlers[K];
 }
@@ -54,6 +54,7 @@ function linkVirtualFirst(realFs: RealFs, virtualFs: VirtualFs, link: 'symlink' 
 }
 
 export const makeHandlers = (realFs: RealFs, virtualFs: VirtualFs): Partial<Handlers> => {
+  return mapHandlers(virtualFs);
   const fdMapper = new FdMapper();
 
   function fromFd<K extends FdHandlers>(realFs: RealFs, virtualFs: VirtualFs, k: K): PathHandlers[K] {
@@ -64,9 +65,9 @@ export const makeHandlers = (realFs: RealFs, virtualFs: VirtualFs): Partial<Hand
       if (downstream) {
         const [handler, mappedFd] = downstream;
         // TODO: get rid of any
-        return (handler[k] as any)([path, mappedFd, ...rest]);
+        return (handler[k] as any)(path, mappedFd, ...rest);
       } else {
-        return (delegate as any)(args);
+        return (delegate as any)(...args);
       }
     }) as unknown as PathHandlers[K];
   }
@@ -214,7 +215,7 @@ function fusedHandlerToNativeHandler<K extends keyof FusedHandlers>(h: Partial<H
       const cb = args.pop();
       debug(k, ...args);
       // TODO: get rid of any
-      $(cb, () => (fusedHandler as any)(args));
+      $(cb, () => (fusedHandler as any)(...args));
     };
   }
 }

@@ -6,7 +6,8 @@ import { RealFs } from './realFs.js';
 
 const opts = await getProgramOpts();
 
-const virtualFs = new VirtualFs();
+const realFs = new RealFs(opts);
+const virtualFs = await VirtualFs.init(realFs);
 const handlers = makeHandlers(new RealFs(opts), virtualFs);
 
 const fuse = new Fuse(
@@ -15,9 +16,17 @@ const fuse = new Fuse(
   { force: true, mkdir: true, autoUnmount: true, defaultPermissions: true }
 );
 
+// TODO:
+// It's surprisingly hard to come up with a good interface, since everything is lazy.
+// E.g. how do we naturally translate `getattr(path)` to something, without knowing if it's a file or folder?
+// Possibly we need a `stat(): Optional<>` here?
+// But this might also need access to the underlying fs.
 virtualFs.registerHandler({
-  handles(folder, file) {
-    return !file || file === 'phantom.virt';
+  handlesFolder(folder) {
+    return true;
+  },
+  handlesFile(file) {
+    return file.endsWith('/phantom.virt');
   },
   listFiles(folder) {
     return ['phantom.virt'];
@@ -28,6 +37,18 @@ virtualFs.registerHandler({
   writeFile(_path, _content) {
     // dev nulling
     return;
+  },
+  stat(path) {
+    if (path.endsWith('/phantom.virt')) {
+      return {
+        type: 'file',
+        writeable: false,
+        modificationTime: new Date(2022, 1, 1, 0, 0, 0),
+        size: "Phantom data".length,
+        executable: false
+      }
+    }
+    return undefined;
   }
 });
 
