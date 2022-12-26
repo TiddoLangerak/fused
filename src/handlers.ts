@@ -22,18 +22,7 @@ function both<A extends any[], F extends (...args: A) => Awaitable<void>>
 type PathHandlers = Omit<FusedHandlers, 'init'>;
 
 type FdHandlers = ('fgetattr' | 'flush' | 'fsync' | 'fsyncdir' | 'ftruncate' | 'read' | 'write' | 'release' | 'releasedir') & keyof PathHandlers;
-
-function virtualFirst<K extends keyof PathHandlers>(realFs: RealFs, virtualFs: VirtualFs, k: K): PathHandlers[K] {
-  return (async(...args: Parameters<PathHandlers[K]>) => {
-    const path: string = args[0];
-    if (await virtualFs.handles(path)) {
-      // TODO: get rid of any, if possible
-      return await (virtualFs[k] as any)(...args);
-    } else {
-      return await (realFs[k] as any)(...args);
-    }
-  }) as unknown as PathHandlers[K];
-}
+type AwaitableFunc<A extends any[], R> = ((...args: A) => Awaitable<R>);
 
 function merge<A extends any[], R, F extends ((...args: A) => Awaitable<R[]>)>(a: F, b: F): (...args: A) => Promise<R[]> {
   return async (...args: A) => {
@@ -43,52 +32,55 @@ function merge<A extends any[], R, F extends ((...args: A) => Awaitable<R[]>)>(a
   }
 }
 
-function linkVirtualFirst(realFs: RealFs, virtualFs: VirtualFs, link: 'symlink' | 'link') {
-  return (target: string, path: string) => {
-    if (virtualFs.handles(path)) {
-      return virtualFs[link](target, path);
-    } else {
-      return realFs[link](target, path);
-    }
-  }
-}
-
 export const makeHandlers = (realFs: RealFs, virtualFs: VirtualFs): Partial<Handlers> => {
   return mapHandlers(virtualFs);
   const fdMapper = new FdMapper<[FusedHandlers, Fd]>();
 
-  function fromFd<K extends FdHandlers>(realFs: RealFs, virtualFs: VirtualFs, k: K): PathHandlers[K] {
-    const delegate = virtualFirst(realFs, virtualFs, k);
-    return ((...args: Parameters<PathHandlers[K]>) => {
+  // TODO: clean up
+  function virtualFirst<A extends [string, ...any[]], R>(real: AwaitableFunc<A, R>, virtual: AwaitableFunc<A, R>): AwaitableFunc<A, R> {
+    return (async(...args) => {
+      const path: string = args[0];
+      if (await virtualFs.handles(path)) {
+        return await virtual(...args);
+      } else {
+        return await real(...args);
+      }
+    });
+  }
+
+  function fromFd<A extends [string, number, ...any[]], R>(real: AwaitableFunc<A, R>, virtual: AwaitableFunc<A, R>): AwaitableFunc<A, R> {
+    const delegate = virtualFirst(real, virtual);
+    return ((...args) => {
       const [path, fd, ...rest] = args;
       const downstream = fdMapper.get(fd);
       if (downstream) {
         const [handler, mappedFd] = downstream;
-        // TODO: get rid of any
-        return (handler[k] as any)(path, mappedFd, ...rest);
+        // TODO: not the nicest... perhaps we could improve?
+        if (handler === realFs) {
+          return real(...args);
+        } else {
+          return virtual(...args);
+        }
       } else {
-        return (delegate as any)(...args);
+        return delegate(...args);
       }
-    }) as unknown as PathHandlers[K];
+    });
   }
 
-  // TODO: replace virtualFirst with this?
-  // And maybe do the same with fromFd etc.
-function virtualFirst2<A extends [string, ...any[]], R, F extends ((...args: A) => Awaitable<R>)>(real: F, virtual: F): ((...args : A) => Promise<R>) {
-  return (async(...args: A) => {
-    const path: string = args[0];
-    if (await virtualFs.handles(path)) {
-      // TODO: get rid of any, if possible
-      return await virtual(...args);
-    } else {
-      return await real(...args);
+  type LinkFunc = (target: string, path: string) => Awaitable<void>;
+  function linkVirtualFirst(real: LinkFunc, virtual: LinkFunc): LinkFunc {
+    return (target, path) => {
+      if (virtualFs.handles(path)) {
+        return virtual(target, path);
+      } else {
+        return real(target, path);
+      }
     }
-  });
-}
+  }
 
-  const mappers: { [K in keyof FusedHandlers]: ((r: RealFs, v: VirtualFs, k: K) => FusedHandlers[K]) } = {
-    init: (real, virtual) => both(real.init, virtual.init),
-    readdir: (real, virtual) => merge(real.readdir, virtual.readdir),
+  const mappers: { [K in keyof FusedHandlers]: ((r: RealFs[K], v: VirtualFs[K]) => FusedHandlers[K]) } = {
+    init: both,
+    readdir: merge,
     getattr: virtualFirst,
     fgetattr: fromFd,
     flush: fromFd,
@@ -116,38 +108,8 @@ function virtualFirst2<A extends [string, ...any[]], R, F extends ((...args: A) 
 
   const combinedFs: FusedHandlers = Object.fromEntries(
     Object.entries(mappers)
-      .map(([ key, val ]) => [key, val(realFs, virtualFs, key as never /* TODO hackhackhack */)])
+      .map(([ key, val ]) => [key, val(realFs[key], virtualFs[key])])
   ) as FusedHandlers;
-
-  /*
-  const combinedFs: FusedHandlers = {
-    init: both(realFs.init, virtualFs.init),
-    getattr: virtualFirst(realFs, virtualFs, 'getattr'),
-    fgetattr: fromFd(realFs, virtualFs, 'fgetattr'),
-    flush: fromFd(realFs, virtualFs, 'flush'),
-    fsync: fromFd(realFs, virtualFs, 'fsync'),
-    readdir: merge(realFs.readdir, virtualFs.readdir),
-    chown: virtualFirst(realFs, virtualFs, 'chown'),
-    chmod: virtualFirst(realFs, virtualFs, 'chmod'),
-    mknod: virtualFirst(realFs, virtualFs, 'mknod'),
-    open: virtualFirst(realFs, virtualFs, 'open'),
-    opendir: virtualFirst(realFs, virtualFs, 'opendir'),
-    read: fromFd(realFs, virtualFs, 'read'),
-    write: fromFd(realFs, virtualFs, 'write'),
-    release: fromFd(realFs, virtualFs, 'release'),
-    releasedir: fromFd(realFs, virtualFs, 'releasedir'),
-    utimens: virtualFirst(realFs, virtualFs, 'utimens'),
-    unlink: virtualFirst(realFs, virtualFs, 'unlink'),
-    rename: virtualFirst(realFs, virtualFs, 'rename'),
-    mkdir: virtualFirst(realFs, virtualFs, 'mkdir'),
-    rmdir: virtualFirst(realFs, virtualFs, 'rmdir'),
-    truncate: virtualFirst(realFs, virtualFs, 'truncate'),
-    ftruncate: fromFd(realFs, virtualFs, 'ftruncate'),
-    readlink: virtualFirst(realFs, virtualFs, 'readlink'),
-    symlink: linkVirtualFirst(realFs, virtualFs, 'symlink'),
-    link: linkVirtualFirst(realFs, virtualFs, 'symlink'),
-  };
-  */
 
   return mapHandlers(combinedFs);
 };
