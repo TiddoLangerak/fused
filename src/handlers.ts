@@ -72,6 +72,20 @@ export const makeHandlers = (realFs: RealFs, virtualFs: VirtualFs): Partial<Hand
     }) as unknown as PathHandlers[K];
   }
 
+  // TODO: replace virtualFirst with this?
+  // And maybe do the same with fromFd etc.
+function virtualFirst2<A extends [string, ...any[]], R, F extends ((...args: A) => Awaitable<R>)>(real: F, virtual: F): ((...args : A) => Promise<R>) {
+  return (async(...args: A) => {
+    const path: string = args[0];
+    if (await virtualFs.handles(path)) {
+      // TODO: get rid of any, if possible
+      return await virtual(...args);
+    } else {
+      return await real(...args);
+    }
+  });
+}
+
   const mappers: { [K in keyof FusedHandlers]: ((r: RealFs, v: VirtualFs, k: K) => FusedHandlers[K]) } = {
     init: (real, virtual) => both(real.init, virtual.init),
     readdir: (real, virtual) => merge(real.readdir, virtual.readdir),

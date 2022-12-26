@@ -39,70 +39,36 @@ export class IOError extends Error {
 // TODO: maybe better?
 const INIT_TIME = new Date();
 
+// TODO:
+// - let's let VirtualFs only deal with one handler
+// - And then we layer VirtualFSs on top of each other (we need to build that anyway)
+export type Handler = 'self' | 'other' | 'other_with_fallback';
+
 // TODO: maybe I'm going about this the wrong way.
 // Instead of merging 2 independent file systems, we can make VirtualFS actually aware of RealFS.
 // That means that VirtualFS would be the only etry point, and it's up to VirtualFS to delegate to RealFS when needed
 export class VirtualFs implements FusedHandlers {
-  #handlers: VirtualFileHandler[] = [];
-  #realFs: RealFs;
+  #handler: VirtualFileHandler;
   #rootGid: number;
   #rootUid: number;
 
-  static init = async (realFs: RealFs): Promise<VirtualFs> => {
-    const { uid, gid } = await realFs.getattr('/');
-    return new VirtualFs(realFs, gid, uid);
-  }
-
-  private constructor(realFs: RealFs, rootGid: number, rootUid: number) {
-    this.#realFs = realFs;
+  constructor(handler: VirtualFileHandler, rootGid: number, rootUid: number) {
+    this.#handler = handler;
     this.#rootGid = rootGid;
     this.#rootUid = rootUid;
   }
-  registerHandler(handler: VirtualFileHandler) {
-    this.#handlers.push(handler);
-  }
+  handles = (path: string) => this.#handler.handles(path)
 
-  #all = <R>(f: (h: VirtualFileHandler) => Awaitable<R>): Promise<R[]> => {
-    return Promise.all(this.#handlers.map(f));
-  }
+  init = () => { /* Nothing to do */ };
 
-  #first = async <R>(m: (h: VirtualFileHandler) => Awaitable<R | undefined>): Promise<R | undefined> => {
-    for (const h of this.#handlers) {
-      const res = await m(h);
-      if (res !== undefined) {
-        return res;
-      }
-    }
-    return undefined;
-  }
-
-  init = () => { this.#realFs.init(); /* Nothing to init ourselves */ };
-  readdir = async (dirPath: string) => {
-    const realFiles = this.#realFs.readdir(dirPath);
-    const fileSets = await this.#all(async (handler) => {
-      // TODO: do we need to stat here?
-      const ministat = await handler.stat(dirPath);
-      if (ministat && ministat.type === 'file') {
-          throw new IOError(Fuse.ENOTDIR, `${dirPath} is registered as a file`);
-      }
-      if (await handler.handlesFolder(dirPath)) {
-        return await handler.listFiles(dirPath);
-      }
-      return [];
-    });
-
-    return fileSets.reduce((a, b) => { a.push(...b); return a }, await realFiles);
-  }
+  readdir = (dirPath: string) => this.#handler.listFiles(dirPath);
 
   getattr = async (path: string) : Promise<Stat> => {
     // TODO: we can probably still do this delegation from a higher level, using .handles.
     // Or alternatively, some slightly different interface
     // Possibly the virtualfs could implement a Result | undefined kind of thing.
     // Let's see.
-    const ministat = await this.#first(h => h.stat(path));
-    if (!ministat) {
-      return this.#realFs.getattr(path);
-    }
+    const ministat = await this.#handler.stat(path);
     switch (ministat.type) {
       case 'folder':
         return {
@@ -140,96 +106,93 @@ export class VirtualFs implements FusedHandlers {
         unreachable(ministat);
     }
   };
+
   fgetattr = (a: string, b: number) : Awaitable<Stat> => {
     // TODO:
-    return this.#realFs.fgetattr(a, b);
+    return todo("fgetattr");
   };
   flush = (a: string, b: number) : Awaitable<void> => {
     // TODO:
-    return this.#realFs.flush(a, b);
+    return todo("flush");
   };
   fsync = (a: string, b: number, c: boolean) : Awaitable<void> => {
     // TODO
-    return this.#realFs.fsync(a, b, c);
+    return todo("fsync");
   };
   truncate = (a: string, b: number) : Awaitable<void> => {
     // TODO
-    return this.#realFs.truncate(a, b);
+    return todo("truncate");
   };
   ftruncate = (a: string, b: number, c: number) : Awaitable<void> => {
     // TODO
-    return this.#realFs.ftruncate(a, b, c);
+    return todo("ftruncate");
   };
   readlink = (a: string) : Awaitable<string> => {
     // TODO
-    return this.#realFs.readlink(a);
+    return todo("readlink");
   };
   chown = (a: string, b: number, c: number) : Awaitable<void> => {
     // TODO
-    return this.#realFs.chown(a, b, c);
+    return todo("chown");
   };
   chmod = (a: string, b: number) : Awaitable<void> => {
     // TODO
-    return this.#realFs.chmod(a, b);
+    return todo("chmod");
   };
   mknod = (a: string, b: number, c: string) : Awaitable<void> => {
     // TODO
-    return this.#realFs.mknod(a, b, c);
+    return todo("mknod");
   };
-  open = (a: string, b: number) : Awaitable<number> => {
+  open = (path: string, mode: number) : Awaitable<number> => {
     // TODO
-    return this.#realFs.open(a, b);
+    return todo("open");
   };
   opendir = (a: string, b: number) : Awaitable<number | void> => {
     // TODO
-    return this.#realFs.opendir(a, b);
+    return todo("opendir");
   };
   release = (a: string, b: number) : Awaitable<void> => {
     // TODO
-    return this.#realFs.release(a, b);
+    return todo("release");
   };
   releasedir = (a: string, b: number) : Awaitable<void> => {
     // TODO
-    return this.#realFs.releasedir(a, b);
+    return todo("releasedir");
   };
   utimens = (a: string, b: number, c: number) : Awaitable<void> => {
     // TODO
-    return this.#realFs.utimens(a, b, c);
+    return todo("utimens");
   };
   unlink = (a: string) : Awaitable<void> => {
     // TODO
-    return this.#realFs.unlink(a);
+    return todo("unlink");
   };
   rename = (a: string, b: string) : Awaitable<void> => {
     // TODO
-    return this.#realFs.rename(a, b);
+    return todo("rename");
   };
   symlink = (a: string, b: string) : Awaitable<void> => {
     // TODO
-    return this.#realFs.symlink(a, b);
+    return todo("symlink");
   };
   link = (a: string, b: string) : Awaitable<void> => {
     // TODO
-    return this.#realFs.link(a, b);
+    return todo("link");
   };
   mkdir = (a: string, b: number) : Awaitable<void> => {
     // TODO
-    return this.#realFs.mkdir(a, b);
+    return todo("mkdir");
   };
   rmdir = (a: string) : Awaitable<void> => {
     // TODO
-    return this.#realFs.rmdir(a);
+    return todo("rmdir");
   };
   write = (path: string, fd: number, buffer: Buffer, length: number, position: number): Awaitable<number> => {
     // TODO
-    return this.#realFs.write(path, fd, buffer, length, position);
+    return todo("write");
   }
   read = (path: string, fd: number, buffer: Buffer, length: number, position: number): Awaitable<number> => {
     // TODO
-    return this.#realFs.read(path, fd, buffer, length, position);
-  }
-
-  handles = (path: string): Awaitable<boolean> => {
-    return this.#handlers.some(handler => handler.handlesFile(path));
+    return todo("read");
   }
 }

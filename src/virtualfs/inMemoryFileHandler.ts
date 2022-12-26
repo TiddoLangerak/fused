@@ -15,13 +15,13 @@ export class InMemoryFileHandler implements VirtualFileHandler {
     this.#file = basename(path);
     console.log(this.#path, this.#folder, this.#file);
   }
-  // TODO: this is broken, we should also deal with prefixes. Otherwise /foo/bar/baz is unreachable if there's no /foo/bar on the real FS
-  handlesFile(file: string): Awaitable<boolean> {
-    return file === this.#file;
-  }
-  handlesFolder(folder: string): Awaitable<boolean> {
-    // TODO: need to do subfolders
-    return folder === this.#folder;
+  handles(path: string) {
+    if (this.#file === path) {
+      return 'self';
+    } else if (this.#file.startsWith(`${path}/`)) {
+      return 'other_with_fallback';
+    }
+    return 'other';
   }
   listFiles(folder: string): Awaitable<string[]>{
     assert(folder === this.#folder, "Requesting static file from incorrect folder");
@@ -35,7 +35,7 @@ export class InMemoryFileHandler implements VirtualFileHandler {
     assert(path === this.#path, "Writing static file with incorrect path");
     this.content = content;
   }
-  stat(path: string): Awaitable<MiniStat | undefined> {
+  stat(path: string): Awaitable<MiniStat> {
     todo("Stat");
   }
 }

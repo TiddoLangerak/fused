@@ -15,15 +15,16 @@ export type MiniStat = {
   type: 'folder',
 }
 
+export type Handler = 'self' | 'other' | 'other_with_fallback';
+
 // TODO: can probably do better by exposing a more complete interface, involving absolute + relative aths
 // TODO: cachable?
 export type VirtualFileHandler = {
-  handlesFolder(folder: string): Awaitable<boolean>;
-  handlesFile(file: string): Awaitable<boolean>;
+  handles(path: string): Awaitable<Handler>;
   listFiles(folder: string): Awaitable<string[]>;
   // TODO: error handling
   readFile(path: string): Awaitable<FileContent | undefined>;
   writeFile(path: string, content: FileContent): Awaitable<void>;
-  stat: (path: string) => Awaitable<MiniStat | undefined>
+  stat: (path: string) => Awaitable<MiniStat>
 }
 
