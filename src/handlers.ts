@@ -55,7 +55,7 @@ function linkVirtualFirst(realFs: RealFs, virtualFs: VirtualFs, link: 'symlink' 
 
 export const makeHandlers = (realFs: RealFs, virtualFs: VirtualFs): Partial<Handlers> => {
   return mapHandlers(virtualFs);
-  const fdMapper = new FdMapper();
+  const fdMapper = new FdMapper<[FusedHandlers, Fd]>();
 
   function fromFd<K extends FdHandlers>(realFs: RealFs, virtualFs: VirtualFs, k: K): PathHandlers[K] {
     const delegate = virtualFirst(realFs, virtualFs, k);

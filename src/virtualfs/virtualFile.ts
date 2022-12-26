@@ -19,6 +19,7 @@ export type Handler = 'self' | 'other' | 'other_with_fallback';
 
 // TODO: can probably do better by exposing a more complete interface, involving absolute + relative aths
 // TODO: cachable?
+// TODO: maybe we can merge on this level, instead of on fs level?
 export type VirtualFileHandler = {
   handles(path: string): Awaitable<Handler>;
   listFiles(folder: string): Awaitable<string[]>;

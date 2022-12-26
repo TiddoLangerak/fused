@@ -3,8 +3,11 @@ export { VirtualFileHandler } from './virtualFile.js';
 
 import Fuse, { Stat } from 'fuse-native';
 import { S_IFDIR, S_IFREG, S_IRGRP, S_IROTH, S_IRUSR, S_IRWXG, S_IRWXU, S_IWGRP, S_IWUSR, S_IXGRP, S_IXOTH, S_IXUSR } from 'node:constants';
+import { Dir } from 'node:fs';
+import { FileHandle } from 'node:fs/promises';
 import { todo, unreachable } from '../assert.js';
 import { Awaitable } from '../awaitable.js';
+import { FdMapper } from '../fd.js';
 import { FusedHandlers } from '../handlers.js';
 import { RealFs } from '../realFs.js';
 import { VirtualFileHandler } from './virtualFile.js';
@@ -51,6 +54,7 @@ export class VirtualFs implements FusedHandlers {
   #handler: VirtualFileHandler;
   #rootGid: number;
   #rootUid: number;
+  #fdMapper = new FdMapper<string>();
 
   constructor(handler: VirtualFileHandler, rootGid: number, rootUid: number) {
     this.#handler = handler;
@@ -147,18 +151,12 @@ export class VirtualFs implements FusedHandlers {
     // TODO
     return todo("open");
   };
-  opendir = (a: string, b: number) : Awaitable<number | void> => {
-    // TODO
-    return todo("opendir");
-  };
+  opendir = (path: string, flags: number) => this.#fdMapper.insert(path);
   release = (a: string, b: number) : Awaitable<void> => {
     // TODO
     return todo("release");
   };
-  releasedir = (a: string, b: number) : Awaitable<void> => {
-    // TODO
-    return todo("releasedir");
-  };
+  releasedir = (path: string, fd: number) => this.#fdMapper.clear(fd);
   utimens = (a: string, b: number, c: number) : Awaitable<void> => {
     // TODO
     return todo("utimens");

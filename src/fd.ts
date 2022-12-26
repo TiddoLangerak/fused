@@ -6,28 +6,18 @@ import { Fd, FusedHandlers } from "./handlers.js";
 const MAX_FD = Math.pow(2, 31) - 1;
 const MAX_FD_ATTEMPTS = 1024;
 
-export class FdMapper {
+export class FdMapper<T> {
   #nextFd: Fd = 1;
-  #fdMap: Map<Fd, [FusedHandlers, Fd]> = new Map();
+  #fdMap: Map<Fd, T> = new Map();
 
-  insert(handler: FusedHandlers, downstream: Fd): Fd {
+  insert(file: T): Fd {
     const upstream = this.#getNextFreeFd();
-    this.#fdMap.set(upstream, [ handler, downstream ]);
+    this.#fdMap.set(upstream, file);
     return upstream;
   }
 
-  get(upstream: Fd): [FusedHandlers, Fd] | undefined {
+  get(upstream: Fd): T | undefined {
     return this.#fdMap.get(upstream);
-  }
-
-  getHandler(upstream: Fd): FusedHandlers | undefined {
-    const mapped = this.get(upstream);
-    return mapped ? mapped[0] : undefined;
-  }
-
-  getFd(upstream: Fd): Fd | undefined {
-    const mapped = this.get(upstream);
-    return mapped ? mapped[1] : undefined;
   }
 
   clear(fd: Fd) {
