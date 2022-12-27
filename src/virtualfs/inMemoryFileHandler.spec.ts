@@ -1,17 +1,22 @@
 import { InMemoryFileHandler } from "./inMemoryFileHandler.js";
 
 describe('inMemoryFileHandler', () => {
-  const handler = new InMemoryFileHandler('/foo/bar/baz', '12345');
+  let handler = new InMemoryFileHandler('/foo/bar/baz', '12345');
   beforeEach(() => handler.content = '12345');
 
   describe('handles', () => {
     it('handles files with matching path', async () => {
-      expect(await handler.handlesFile('/foo/bar/baz')).toBe(true);
+      expect(await handler.handles('/foo/bar/baz')).toBe('self');
+    });
+    it('handles parent folders as fallbacks', async() => {
+      expect(await handler.handles('/foo/bar')).toBe('other_with_fallback');
+      expect(await handler.handles('/foo')).toBe('other_with_fallback');
+      expect(await handler.handles('/')).toBe('other_with_fallback');
     });
     it(`doesn't handle files with different paths`, async () => {
-      expect(await handler.handlesFile('/foo')).toBe(false);
-      expect(await handler.handlesFile('/foo/bar/baz/qux')).toBe(false);
-      expect(await handler.handlesFile('/bar')).toBe(false);
+      expect(await handler.handles('/foo')).toBe('other');
+      expect(await handler.handles('/foo/bar/baz/qux')).toBe('other');
+      expect(await handler.handles('/bar')).toBe('other');
     });
   });
 

@@ -9,11 +9,11 @@ export class InMemoryFileHandler implements VirtualFileHandler {
   #folder: string;
   #file: string;
   #modificationTime: Date;
-  #content: FileContent;
+  content: FileContent;
 
   constructor(path: string, content: FileContent) {
     this.#path = path;
-    this.#content = content;
+    this.content = content;
     this.#folder = dirname(path);
     this.#file = basename(path);
     this.#modificationTime = new Date();
@@ -33,11 +33,11 @@ export class InMemoryFileHandler implements VirtualFileHandler {
   }
   readFile(path: string): Awaitable<FileContent> {
     assert(path === this.#path, "Requesting static file with incorrect path");
-    return this.#content;
+    return this.content;
   }
   writeFile(path: string, content: FileContent): Awaitable<void> {
     assert(path === this.#path, "Writing static file with incorrect path");
-    this.#content = content;
+    this.content = content;
     this.#modificationTime = new Date();
   }
   stat(path: string): Awaitable<MiniStat> {
@@ -46,7 +46,7 @@ export class InMemoryFileHandler implements VirtualFileHandler {
         type: 'file',
         writeable: true,
         modificationTime: this.#modificationTime,
-        size: this.#content.length,
+        size: this.content.length,
         executable: false
       }
     } else if (this.#file.startsWith(`${path}/`)) {
