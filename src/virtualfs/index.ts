@@ -7,6 +7,7 @@ import { Dir } from 'node:fs';
 import { FileHandle } from 'node:fs/promises';
 import { todo, unreachable } from '../assert.js';
 import { Awaitable } from '../awaitable.js';
+import { IOError } from '../error.js';
 import { FdMapper } from '../fd.js';
 import { FusedHandlers } from '../handlers.js';
 import { RealFs } from '../realFs.js';
@@ -21,12 +22,6 @@ import { FileContent, VirtualFileHandler } from './virtualFile.js';
 export type VirtualFsOpts = {
   sourcePath: string,
   mountPath: string
-}
-
-export class IOError extends Error {
-  constructor(public errno: number, msg: string) {
-    super(msg);
-  }
 }
 
 // TODO: maybe better?
