@@ -10,7 +10,7 @@ import { Awaitable } from '../awaitable.js';
 import { FdMapper } from '../fd.js';
 import { FusedHandlers } from '../handlers.js';
 import { RealFs } from '../realFs.js';
-import { VirtualFileHandler } from './virtualFile.js';
+import { FileContent, VirtualFileHandler } from './virtualFile.js';
 
 // TODO
 // I should tackle this differently. I should:
@@ -47,6 +47,16 @@ const INIT_TIME = new Date();
 // - And then we layer VirtualFSs on top of each other (we need to build that anyway)
 export type Handler = 'self' | 'other' | 'other_with_fallback';
 
+type InternalFd = {
+  type: 'dir',
+  path: string
+} | {
+  type: 'file',
+  path: string,
+  content: Buffer
+};
+
+
 // TODO: maybe I'm going about this the wrong way.
 // Instead of merging 2 independent file systems, we can make VirtualFS actually aware of RealFS.
 // That means that VirtualFS would be the only etry point, and it's up to VirtualFS to delegate to RealFS when needed
@@ -54,7 +64,8 @@ export class VirtualFs implements FusedHandlers {
   #handler: VirtualFileHandler;
   #rootGid: number;
   #rootUid: number;
-  #fdMapper = new FdMapper<string>();
+  // TODO: probably need to separate dirs from files
+  #fdMapper = new FdMapper<InternalFd>();
 
   constructor(handler: VirtualFileHandler, rootGid: number, rootUid: number) {
     this.#handler = handler;
@@ -116,8 +127,7 @@ export class VirtualFs implements FusedHandlers {
     return todo("fgetattr");
   };
   flush = (a: string, b: number) : Awaitable<void> => {
-    // TODO:
-    return todo("flush");
+    /* Nothing to do */
   };
   fsync = (a: string, b: number, c: boolean) : Awaitable<void> => {
     // TODO
@@ -147,15 +157,17 @@ export class VirtualFs implements FusedHandlers {
     // TODO
     return todo("mknod");
   };
-  open = (path: string, mode: number) : Awaitable<number> => {
-    // TODO
-    return todo("open");
-  };
-  opendir = (path: string, flags: number) => this.#fdMapper.insert(path);
-  release = (a: string, b: number) : Awaitable<void> => {
-    // TODO
-    return todo("release");
-  };
+  open = async (path: string, mode: number) => {
+    // TODO: how to deal with concurrent r/w access?
+    const content = await this.#handler.readFile(path);
+    const buff: Buffer = typeof content === 'string'
+      ? Buffer.from(content)
+      : content;
+
+    return this.#fdMapper.insert({ type: 'file', path, content: buff });
+  }
+  opendir = (path: string, flags: number) => this.#fdMapper.insert({ type: 'dir', path });
+  release = (path: string, fd: number) => this.#fdMapper.clear(fd);
   releasedir = (path: string, fd: number) => this.#fdMapper.clear(fd);
   utimens = (a: string, b: number, c: number) : Awaitable<void> => {
     // TODO
@@ -191,6 +203,14 @@ export class VirtualFs implements FusedHandlers {
   }
   read = (path: string, fd: number, buffer: Buffer, length: number, position: number): Awaitable<number> => {
     // TODO
-    return todo("read");
+    const file = this.#fdMapper.get(fd);
+    if (!file) {
+      throw new IOError(Fuse.EBADF, "Unknown file descriptor");
+    }
+    if (file.type !== 'file') {
+      throw new IOError(Fuse.EISDIR, "Cannot read from a dir");
+    }
+
+    return file.content.copy(buffer, 0, position, position + length);
   }
 }

@@ -50,6 +50,7 @@ declare module 'fuse-native' {
   export default class Fuse {
     static ENOENT: number;
     static ENOTDIR: number;
+    static EISDIR: number;
     static ENFILE: number;
     static EBADF: number;
     constructor(mnt: string, handlers: Partial<Handlers>, opts?: Partial<Options>)
