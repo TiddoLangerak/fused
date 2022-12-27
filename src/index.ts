@@ -82,7 +82,7 @@ export async function main(opts: ProgramOpts, files: VirtualFileHandler[]) {
     }
   });
 
-  process.on('SIGINT', (_code) => {
+  function unmount() {
     // TODO: clean this up
     Fuse.unmount(opts.mountPath, (err) => {
       if(err) {
@@ -91,7 +91,12 @@ export async function main(opts: ProgramOpts, files: VirtualFileHandler[]) {
       }
       process.exit(0);
     });
-  });
+    process.off('SIGINT', unmount);
+  }
+
+  process.on('SIGINT', unmount);
+
+  return { unmount };
 }
 
 

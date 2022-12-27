@@ -29,15 +29,17 @@ export class InMemoryFileHandler implements VirtualFileHandler {
     return 'other';
   }
   listFiles(folder: string): Awaitable<string[]>{
-    assert(folder === this.#folder, "Requesting static file from incorrect folder");
-    return [this.#file];
+    if (this.#folder === folder) {
+      return [this.#file];
+    }
+    return [];
   }
   readFile(path: string): Awaitable<FileContent> {
-    assert(path === this.#path, "Requesting static file with incorrect path");
+    assert(path === this.#path, new FileNotFoundError(path));
     return this.content;
   }
   writeFile(path: string, content: FileContent): Awaitable<void> {
-    assert(path === this.#path, "Writing static file with incorrect path");
+    assert(path === this.#path, new FileNotFoundError(path));
     this.content = content;
     this.#modificationTime = new Date();
   }

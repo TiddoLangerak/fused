@@ -1,6 +1,10 @@
-export function assert(c: boolean, msg: string): asserts c {
+export function assert(c: boolean, msg: string | Error): asserts c {
   if (!c) {
-    throw new Error(msg);
+    if (typeof msg === 'string') {
+      throw new Error(msg);
+    } else {
+      throw msg;
+    }
   }
 }
 
