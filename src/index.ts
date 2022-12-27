@@ -1,13 +1,11 @@
 import Fuse from 'fuse-native';
-import { getProgramOpts } from './opts.js';
+import { getProgramOpts, ProgramOpts } from './opts.js';
 import { makeHandlers } from './handlers.js';
 import { VirtualFileHandler, VirtualFs } from './virtualfs/index.js';
 import { RealFs } from './realFs.js';
+import { assert } from './assert.js';
 
 const opts = await getProgramOpts();
-
-const realFs = new RealFs(opts);
-
 const handler: VirtualFileHandler = {
   handles(path) {
     if (path.endsWith('/phantom.virt')) {
@@ -44,36 +42,45 @@ const handler: VirtualFileHandler = {
   }
 };
 
-const { gid, uid } = await realFs.getattr('/');
+main(opts, [handler]);
 
-const virtualFs = new VirtualFs(handler, gid, uid);
+export async function main(opts: ProgramOpts, files: VirtualFileHandler[]) {
+  assert(files.length === 1, "TODO: not yet implemented support for multiple handlers");
 
+  const realFs = new RealFs(opts);
+  const { gid, uid } = await realFs.getattr('/');
 
-const handlers = makeHandlers(new RealFs(opts), virtualFs);
+  const virtualFs = new VirtualFs(files[0], gid, uid);
 
-const fuse = new Fuse(
-  opts.mountPath,
-  handlers,
-  { force: true, mkdir: true, autoUnmount: true, defaultPermissions: true }
-);
+  const handlers = makeHandlers(new RealFs(opts), virtualFs);
 
-fuse.mount(err => {
-  console.log("Mounted, ready for action");
-  if (err) {
-    console.error("Couldn't mount", err);
-    process.exit(-1);
-  }
-});
+  const fuse = new Fuse(
+    opts.mountPath,
+    handlers,
+    { force: true, mkdir: true, autoUnmount: true, defaultPermissions: true }
+  );
 
-process.on('SIGINT', (_code) => {
-  // TODO: clean this up
-  Fuse.unmount(opts.mountPath, (err) => {
-    if(err) {
-      console.error("Couldn't cleanly unmount");
+  fuse.mount(err => {
+    console.log("Mounted, ready for action");
+    if (err) {
+      console.error("Couldn't mount", err);
       process.exit(-1);
     }
-    process.exit(0);
   });
-});
+
+  process.on('SIGINT', (_code) => {
+    // TODO: clean this up
+    Fuse.unmount(opts.mountPath, (err) => {
+      if(err) {
+        console.error("Couldn't cleanly unmount");
+        process.exit(-1);
+      }
+      process.exit(0);
+    });
+  });
+}
+
+
+
 
 
