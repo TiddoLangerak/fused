@@ -12,16 +12,6 @@ import { FusedHandlers } from '../handlers.js';
 import { RealFs } from '../realFs.js';
 import { FileContent, VirtualFileHandler } from './virtualFile.js';
 
-// TODO
-// I should tackle this differently. I should:
-// 1. Make a promise-based interface for all the handler methods
-// 2. Implement this interface twice:
-//    i. with real file backing
-//    ii. with virtual file backing
-// 3. Implement this interface a third time, delegating to ^. Prio should go to overlay.
-//    - Keep in mind that we should be careful to only implement those methods for which BOTH
-//      delegates have support.
-
 /**
  * Use cases:
  * 1. Insert a package.json file into every /lib/ folder
@@ -45,6 +35,7 @@ const INIT_TIME = new Date();
 // TODO:
 // - let's let VirtualFs only deal with one handler
 // - And then we layer VirtualFSs on top of each other (we need to build that anyway)
+// - Or, instead, pile up virtual handlers? Though, that might be more of a hassle as we don't have FDs there
 export type Handler = 'self' | 'other' | 'other_with_fallback';
 
 type InternalFd = {
@@ -59,14 +50,10 @@ type InternalFd = {
 };
 
 
-// TODO: maybe I'm going about this the wrong way.
-// Instead of merging 2 independent file systems, we can make VirtualFS actually aware of RealFS.
-// That means that VirtualFS would be the only etry point, and it's up to VirtualFS to delegate to RealFS when needed
 export class VirtualFs implements FusedHandlers {
   #handler: VirtualFileHandler;
   #rootGid: number;
   #rootUid: number;
-  // TODO: probably need to separate dirs from files
   #fdMapper = new FdMapper<InternalFd>();
 
   constructor(handler: VirtualFileHandler, rootGid: number, rootUid: number) {
@@ -81,10 +68,6 @@ export class VirtualFs implements FusedHandlers {
   readdir = (dirPath: string) => this.#handler.listFiles(dirPath);
 
   getattr = async (path: string) : Promise<Stat> => {
-    // TODO: we can probably still do this delegation from a higher level, using .handles.
-    // Or alternatively, some slightly different interface
-    // Possibly the virtualfs could implement a Result | undefined kind of thing.
-    // Let's see.
     const ministat = await this.#handler.stat(path);
     switch (ministat.type) {
       case 'folder':
@@ -113,7 +96,6 @@ export class VirtualFs implements FusedHandlers {
           atime: ministat.modificationTime,
           ctime: INIT_TIME,
           size: ministat.size,
-          // TODO: do we need to handle char vs block
           mode: execMode | writeMode | readMode | S_IFREG,
           // TODO: instead, should probably inherit from parent
           uid: this.#rootUid,
@@ -139,9 +121,18 @@ export class VirtualFs implements FusedHandlers {
     // TODO
     return todo("fsync");
   };
-  truncate = (a: string, b: number) : Awaitable<void> => {
-    // TODO
-    return todo("truncate");
+  truncate = async (path: string, size: number) : Promise<void> => {
+    if (size === 0) {
+      this.#handler.writeFile(path, Buffer.alloc(0));
+    } else {
+      const original = await this.#handler.readFile(path);
+      const newBuf = Buffer.alloc(size);
+      if (typeof original === 'string') {
+        newBuf.write(original);
+      } else {
+        original.copy(newBuf);
+      }
+    }
   };
   ftruncate = (a: string, b: number, c: number) : Awaitable<void> => {
     // TODO
@@ -165,7 +156,7 @@ export class VirtualFs implements FusedHandlers {
   };
   open = async (path: string, mode: number) => {
     // TODO: how to deal with concurrent r/w access?
-    // TODO: respect moed
+    // TODO: respect mode
     // TODO: do we need to respect blocking IO
     const content = await this.#handler.readFile(path);
     const buff: Buffer = typeof content === 'string'
@@ -236,7 +227,6 @@ export class VirtualFs implements FusedHandlers {
   }
 
   #resizeBuffer(buf: Buffer, desiredSize: number, chunkSize: number): Buffer {
-    // TODO: maybe we can do better?
     const newSize = Math.max(desiredSize, buf.length * 2);
     const newBuf = Buffer.alloc(newSize);
     buf.copy(newBuf, 0, 0, buf.length);
