@@ -53,7 +53,9 @@ type InternalFd = {
 } | {
   type: 'file',
   path: string,
-  content: Buffer
+  content: Buffer,
+  hasPendingContent: boolean,
+  size: number
 };
 
 
@@ -126,7 +128,11 @@ export class VirtualFs implements FusedHandlers {
     // TODO:
     return todo("fgetattr");
   };
-  flush = (a: string, b: number) : Awaitable<void> => {
+  flush = (path: string, fd: number) : Awaitable<void> => {
+    const file = this.#getFile(fd);
+    if (file.hasPendingContent) {
+      this.#handler.writeFile(file.path, file.content.subarray(0, file.size));
+    }
     /* Nothing to do */
   };
   fsync = (a: string, b: number, c: boolean) : Awaitable<void> => {
@@ -159,12 +165,14 @@ export class VirtualFs implements FusedHandlers {
   };
   open = async (path: string, mode: number) => {
     // TODO: how to deal with concurrent r/w access?
+    // TODO: respect moed
+    // TODO: do we need to respect blocking IO
     const content = await this.#handler.readFile(path);
     const buff: Buffer = typeof content === 'string'
       ? Buffer.from(content)
       : content;
 
-    return this.#fdMapper.insert({ type: 'file', path, content: buff });
+    return this.#fdMapper.insert({ type: 'file', path, content: buff, hasPendingContent: false, size: buff.length });
   }
   opendir = (path: string, flags: number) => this.#fdMapper.insert({ type: 'dir', path });
   release = (path: string, fd: number) => this.#fdMapper.clear(fd);
@@ -198,19 +206,40 @@ export class VirtualFs implements FusedHandlers {
     return todo("rmdir");
   };
   write = (path: string, fd: number, buffer: Buffer, length: number, position: number): Awaitable<number> => {
-    // TODO
-    return todo("write");
+    const file = this.#getFile(fd);
+
+    const neededBufferSize = position+length;
+    if (file.content.length < neededBufferSize) {
+      file.content = this.#resizeBuffer(file.content, neededBufferSize, length);
+    }
+
+    file.size = Math.max(file.size, neededBufferSize);
+    file.hasPendingContent = true;
+    return buffer.copy(file.content, position, 0, length);
   }
   read = (path: string, fd: number, buffer: Buffer, length: number, position: number): Awaitable<number> => {
     // TODO
+    const file = this.#getFile(fd);
+
+    return file.content.copy(buffer, 0, position, position + length);
+  }
+
+  #getFile(fd: number) {
     const file = this.#fdMapper.get(fd);
     if (!file) {
       throw new IOError(Fuse.EBADF, "Unknown file descriptor");
     }
     if (file.type !== 'file') {
-      throw new IOError(Fuse.EISDIR, "Cannot read from a dir");
+      throw new IOError(Fuse.EISDIR, "Expected a file, but received a dir");
     }
+    return file;
+  }
 
-    return file.content.copy(buffer, 0, position, position + length);
+  #resizeBuffer(buf: Buffer, desiredSize: number, chunkSize: number): Buffer {
+    // TODO: maybe we can do better?
+    const newSize = Math.max(desiredSize, buf.length * 2);
+    const newBuf = Buffer.alloc(newSize);
+    buf.copy(newBuf, 0, 0, buf.length);
+    return newBuf;
   }
 }

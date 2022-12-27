@@ -16,7 +16,6 @@ const handler: VirtualFileHandler = {
     return 'other_with_fallback';
   },
   listFiles(folder) {
-    console.log("Listing files...");
     return ['phantom.virt'];
   },
   readFile(path) {
@@ -24,6 +23,7 @@ const handler: VirtualFileHandler = {
   },
   writeFile(_path, _content) {
     // dev nulling
+    console.log("Written", _path, _content.toString(), _content.length);
     return;
   },
   stat(path) {

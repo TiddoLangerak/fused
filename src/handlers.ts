@@ -248,6 +248,7 @@ function $<T>(cb: CB<T>, fn: () => Awaitable<T>) {
 }
 
 function handleError(e: any): number {
+  debug("Error", e);
   if (e.errno) {
     return e.errno;
   } else {
