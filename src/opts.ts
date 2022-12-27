@@ -16,21 +16,5 @@ export async function getProgramOpts(): Promise<ProgramOpts> {
   const sourcePath = resolve(args[0]);
   const mountPath = resolve(args[1]);
 
-  let sourceIsDir;
-  try {
-    sourceIsDir = (await fs.stat(sourcePath)).isDirectory();
-  } catch (e) {
-    sourceIsDir = false;
-  }
-  if (!sourceIsDir) {
-    console.error("Source must be a folder");
-    process.exit(-1);
-  }
-
-  if (sourcePath.startsWith(mountPath) || mountPath.startsWith(sourcePath)) {
-    console.error("Source and mount paths cannot overlap.");
-    process.exit(-1);
-  }
-
   return {sourcePath, mountPath};
 }

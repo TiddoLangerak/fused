@@ -4,6 +4,7 @@ import { makeHandlers } from './handlers.js';
 import { VirtualFileHandler, VirtualFs } from './virtualfs/index.js';
 import { RealFs } from './realFs.js';
 import { assert } from './assert.js';
+import { stat } from 'fs/promises';
 
 const opts = await getProgramOpts();
 const handler: VirtualFileHandler = {
@@ -44,9 +45,22 @@ const handler: VirtualFileHandler = {
 
 main(opts, [handler]);
 
+
+async function validateOpts({ sourcePath, mountPath }: ProgramOpts) {
+  const sourceIsDir = (await stat(sourcePath)).isDirectory();
+  if (!sourceIsDir) {
+    throw new Error("Source must be a folder");
+  }
+
+  if (sourcePath.startsWith(mountPath) || mountPath.startsWith(sourcePath)) {
+    throw new Error("Source and mount paths cannot overlap.");
+  }
+}
+
 export async function main(opts: ProgramOpts, files: VirtualFileHandler[]) {
   assert(files.length === 1, "TODO: not yet implemented support for multiple handlers");
 
+  await validateOpts(opts);
   const realFs = new RealFs(opts);
   const { gid, uid } = await realFs.getattr('/');
 
