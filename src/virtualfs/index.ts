@@ -102,7 +102,7 @@ export class VirtualFs implements FusedHandlers {
         const execMode = ministat.executable
           ? S_IXUSR | S_IXGRP
           : 0;
-        const writeMode = ministat.executable
+        const writeMode = ministat.writeable
           ? S_IWUSR | S_IWGRP
           : 0;
         const readMode = S_IRUSR | S_IRGRP | S_IROTH;

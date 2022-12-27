@@ -30,7 +30,8 @@ const handler: VirtualFileHandler = {
     if (path.endsWith('/phantom.virt')) {
       return {
         type: 'file',
-        writeable: false,
+        writeable: true,
+//        writeable: false,
         modificationTime: new Date(2022, 1, 1, 0, 0, 0),
         size: "Phantom data".length,
         executable: false
