@@ -20,9 +20,10 @@ export class InMemoryFileHandler implements VirtualFileHandler {
     console.log(this.#path, this.#folder, this.#file);
   }
   handles(path: string) {
-    if (this.#file === path) {
+    console.log(this.#path, path);
+    if (this.#path === path) {
       return 'self';
-    } else if (this.#file.startsWith(`${path}/`)) {
+    } else if (path === '/' || this.#path.startsWith(`${path}/`)) {
       return 'other_with_fallback';
     }
     return 'other';

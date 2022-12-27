@@ -14,7 +14,7 @@ describe('inMemoryFileHandler', () => {
       expect(await handler.handles('/')).toBe('other_with_fallback');
     });
     it(`doesn't handle files with different paths`, async () => {
-      expect(await handler.handles('/foo')).toBe('other');
+      expect(await handler.handles('/for')).toBe('other');
       expect(await handler.handles('/foo/bar/baz/qux')).toBe('other');
       expect(await handler.handles('/bar')).toBe('other');
     });
@@ -25,17 +25,21 @@ describe('inMemoryFileHandler', () => {
     it('lists the file for the current folder', async () => {
       expect(await handler.listFiles('/foo/bar')).toEqual(['baz']);
     });
-    it('throws if the passed in folder has the wrong path', () => {
-      expect(async() => await handler.listFiles('foo')).toThrow();
+    it('throws if the passed in folder has the wrong path', async () => {
+      await expect(async() => await handler.listFiles('foo'))
+        .rejects
+        .toThrow();
     });
   });
 
   describe('readFile', () => {
     it('returns the file content', async () => {
-      expect(await handler.readFile('/foo/bar/baz')).toEqual(['12345']);
+      expect(await handler.readFile('/foo/bar/baz')).toEqual('12345');
     });
-    it('throws if the passed in folder has the wrong path', () => {
-      expect(async() => await handler.readFile('foo')).toThrow();
+    it('throws if the passed in folder has the wrong path', async () => {
+      await expect(async() => await handler.readFile('foo'))
+        .rejects
+        .toThrow();
     });
   });
 
@@ -43,10 +47,12 @@ describe('inMemoryFileHandler', () => {
     it('changes the files content', async () => {
       await handler.writeFile('/foo/bar/baz', 'something new');
       expect(handler.content).toBe('something new');
-      expect(await handler.readFile('/foo/bar/baz')).toEqual(['something new']);
+      expect(await handler.readFile('/foo/bar/baz')).toEqual('something new');
     });
-    it('throws if the passed in folder has the wrong path', () => {
-      expect(async() => await handler.writeFile('foo', 'something new')).toThrow();
+    it('throws if the passed in folder has the wrong path', async () => {
+      await expect(async() => await handler.writeFile('foo', 'something new'))
+        .rejects
+        .toThrow();
     });
   });
 });
