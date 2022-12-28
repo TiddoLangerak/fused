@@ -32,10 +32,9 @@ export const makeHandlers = (realFs: RealFs, virtualFs: VirtualFs): Partial<Hand
   //return mapHandlers(virtualFs);
   const fdMapper = new FdMapper<[FusedHandlers, Fd]>();
 
-function init(): (() => Promise<void>) {
-  return async () => { await Promise.all([ realFs.init(), virtualFs.init() ]); }
-}
-
+  function init(): (() => Promise<void>) {
+    return async () => { await Promise.all([ realFs.init(), virtualFs.init() ]); }
+  }
 
   function readdir(): Readdir {
     async function ignoreEnoent(p: Awaitable<string[]>): Promise<string[]> {

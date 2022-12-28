@@ -3,15 +3,12 @@ export { VirtualFileHandler } from './virtualFile.js';
 
 import Fuse, { Stat } from 'fuse-native';
 import { S_IFDIR, S_IFREG, S_IRGRP, S_IROTH, S_IRUSR, S_IRWXG, S_IRWXU, S_IWGRP, S_IWUSR, S_IXGRP, S_IXOTH, S_IXUSR } from 'node:constants';
-import { Dir } from 'node:fs';
-import { FileHandle } from 'node:fs/promises';
 import { todo, unreachable } from '../assert.js';
 import { Awaitable } from '../awaitable.js';
 import { IOError } from '../error.js';
 import { FdMapper } from '../fd.js';
 import { FusedHandlers } from '../handlers.js';
-import { RealFs } from '../realFs.js';
-import { FileContent, VirtualFileHandler } from './virtualFile.js';
+import { VirtualFileHandler } from './virtualFile.js';
 
 /**
  * Use cases:

@@ -55,6 +55,7 @@ declare module 'fuse-native' {
     static EBADF: number;
     constructor(mnt: string, handlers: Partial<Handlers>, opts?: Partial<Options>)
     mount(cb: (err: any) => unknown): unknown;
+    close(cb: (err: any) => unknown): unknown;
     static unmount(mnt: string, cb: (err: any) => unknown): unknown;
   }
 }
