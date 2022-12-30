@@ -56,7 +56,7 @@ export class InMemoryFileHandler implements VirtualFileHandler {
         size: this.content.length,
         executable: false
       }
-    } else if (this.#file.startsWith(`${path}/`)) {
+    } else if (this.#isAncestor(path)) {
       return {
         type: 'folder'
       }
