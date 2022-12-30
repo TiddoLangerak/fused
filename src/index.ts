@@ -39,7 +39,8 @@ const handler: VirtualFileHandler = {
   }
 };
 
-main(opts, [handler]);
+await main(opts, [handler]);
+console.log("Mounted, ready for action");
 
 
 

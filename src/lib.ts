@@ -40,7 +40,6 @@ export async function main(opts: ProgramOpts, files: VirtualFileHandler[]) {
         console.error("Couldn't mount", err);
         reject(err);
       }
-      console.log("Mounted, ready for action");
       resolve(null);
     });
   });

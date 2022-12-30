@@ -5,6 +5,7 @@ import { ProgramOpts } from './opts.js';
 import { InMemoryFileHandler } from './virtualfs/inMemoryFileHandler.js';
 import * as fs from 'node:fs/promises';
 import rimraf from 'rimraf';
+import { Stats } from 'node:fs';
 
 const sourcePath = resolve(__dirname, '../test/src')
 const mountPath = resolve(__dirname, '../test/mnt');
@@ -89,6 +90,27 @@ describe('fused', () => {
       expect(() => fs.readFile(`${sourcePath}/foo/bar`, 'utf8'))
         .rejects
         .toThrow('ENOENT');
+    });
+  });
+
+  describe('lstat', () => {
+    describe('Stats real files', () => {
+      let realStat: Stats;
+      let mntStat: Stats;
+      beforeEach(async () => {
+        realStat = await fs.lstat(`${sourcePath}/file`);
+        mntStat = await fs.lstat(`${mountPath}/file`);
+      });
+      // Not all fields match.
+      // E.g. all ms times get rounded
+      const matchingFields: (keyof Stats)[] = [
+        'atime', 'blksize', 'blocks', 'ctime', 'gid', 'mode', 'mtime', 'nlink', 'rdev', 'size', 'uid'
+      ];
+      for (const field of matchingFields) {
+        it(`.${field}`, async () =>
+          expect(mntStat[field]).toEqual(realStat[field])
+        );
+      }
     });
   });
 
