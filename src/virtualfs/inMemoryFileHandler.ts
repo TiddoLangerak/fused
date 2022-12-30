@@ -1,4 +1,4 @@
-import { basename, dirname } from 'path';
+import { basename, dirname, relative, sep } from 'path';
 import { assert, todo } from '../assert.js';
 import { FileContent, MiniStat, VirtualFileHandler } from "./virtualFile.js";
 import { Awaitable } from '../awaitable.js';
@@ -17,13 +17,14 @@ export class InMemoryFileHandler implements VirtualFileHandler {
     this.#folder = dirname(path);
     this.#file = basename(path);
     this.#modificationTime = new Date();
-    console.log(this.#path, this.#folder, this.#file);
+  }
+  #isAncestor(path: string): boolean {
+    return relative(path, this.#path)[0] !== '.';
   }
   handles(path: string) {
-    console.log(this.#path, path);
     if (this.#path === path) {
       return 'self';
-    } else if (path === '/' || this.#path.startsWith(`${path}/`)) {
+    } else if (this.#isAncestor(path)) {
       return 'other_with_fallback';
     }
     return 'other';
@@ -31,7 +32,10 @@ export class InMemoryFileHandler implements VirtualFileHandler {
   listFiles(folder: string): Awaitable<string[]>{
     if (this.#folder === folder) {
       return [this.#file];
+    } else if (this.#isAncestor(folder)) {
+      return [relative(folder, this.#folder).split(sep)[0]];
     }
+
     return [];
   }
   readFile(path: string): Awaitable<FileContent> {

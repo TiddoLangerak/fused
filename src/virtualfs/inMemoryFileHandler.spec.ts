@@ -25,10 +25,12 @@ describe('inMemoryFileHandler', () => {
     it('lists the file for the current folder', async () => {
       expect(await handler.listFiles('/foo/bar')).toEqual(['baz']);
     });
-    it('throws if the passed in folder has the wrong path', async () => {
-      await expect(async() => await handler.listFiles('foo'))
-        .rejects
-        .toThrow();
+    it('list the path to the containing folder', async () => {
+      await expect(await handler.listFiles('/foo')).toEqual(['bar']);
+      await expect(await handler.listFiles('/')).toEqual(['foo']);
+    });
+    it('returns empty when passed an unknown path', async () => {
+      await expect(await handler.listFiles('/bar')).toEqual([]);
     });
   });
 
