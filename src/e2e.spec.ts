@@ -128,4 +128,41 @@ describe('fused', () => {
     });
   });
 
+  describe('mkdir/rmdir', () => {
+    it('creates & removes real folders', async () => {
+      await fs.mkdir(`${mountPath}/bla`);
+      expect((await fs.lstat(`${mountPath}/bla`)).isDirectory()).toBe(true);
+      expect((await fs.lstat(`${sourcePath}/bla`)).isDirectory()).toBe(true);
+
+      await fs.rmdir(`${mountPath}/bla`);
+      expect(() => fs.lstat(`${mountPath}/bla`))
+        .rejects
+        .toThrow("ENOENT");
+      expect(() => fs.lstat(`${sourcePath}/bla`))
+        .rejects
+        .toThrow("ENOENT");
+    });
+    // TODO: need to find a better way to test this
+    it('creates & removes real folders through virtual folders', async () => {
+      await fs.mkdir(`${mountPath}/foo/foo`);
+      expect((await fs.lstat(`${mountPath}/foo/foo`)).isDirectory()).toBe(true);
+      expect((await fs.lstat(`${sourcePath}/foo/foo`)).isDirectory()).toBe(true);
+
+      await fs.rmdir(`${mountPath}/foo/foo`);
+      expect(() => fs.lstat(`${mountPath}/foo/foo`))
+        .rejects
+        .toThrow("ENOENT");
+      expect(() => fs.lstat(`${sourcePath}/foo/foo`))
+        .rejects
+        .toThrow("ENOENT");
+    });
+    it(`can't remove virtual folders`, async () => {
+      expect(() => fs.rmdir(`${mountPath}/foo`))
+        .rejects
+        .toThrow("EPERM");
+
+      // Just checking that it doesn't error
+      await fs.lstat(`${mountPath}/foo`);
+    });
+  });
 });

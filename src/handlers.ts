@@ -6,6 +6,7 @@ import { Awaitable } from "./awaitable.js";
 import { FdMapper } from "./fd.js";
 import { VirtualFs } from "./virtualfs/index.js";
 import { RealFs } from "./realFs.js";
+import { dirname } from "path";
 export { Stat };
 export type Fd = number;
 
@@ -134,7 +135,18 @@ export const makeHandlers = (realFs: RealFs, virtualFs: VirtualFs): Partial<Hand
     utimens: virtualFirst,
     unlink: virtualFirst,
     rename: virtualFirst,
-    mkdir: virtualFirst,
+    mkdir: (real, virtual) => async (path: string, mode: number) => {
+      // TODO: refactor this into something nice?
+      const parent = dirname(path);
+      switch (await virtualFs.handles(parent)) {
+        case 'self':
+          return await virtual(path, mode);
+        case 'other':
+          return await real(path, mode);
+        case 'other_with_fallback':
+          return await realWithFallback(real, virtual, [path, mode]);
+      }
+    },
     rmdir: virtualFirst,
     truncate: virtualFirst,
     ftruncate: fromFd,

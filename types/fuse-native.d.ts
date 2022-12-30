@@ -53,6 +53,7 @@ declare module 'fuse-native' {
     static EISDIR: number;
     static ENFILE: number;
     static EBADF: number;
+    static EPERM: number;
     constructor(mnt: string, handlers: Partial<Handlers>, opts?: Partial<Options>)
     mount(cb: (err: any) => unknown): unknown;
     close(cb: (err: any) => unknown): unknown;
