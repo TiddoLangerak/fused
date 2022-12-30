@@ -74,11 +74,22 @@ describe('fused', () => {
     // TODO: test for read only
   });
 
-  /*
   describe('appendFile', () => {
-    it('Appends to the file', async () => {
+    it('Appends to actual files in the source & mnt tree', async () => {
+      await fs.appendFile(`${mountPath}/file`, 'data');
+      const srcContent = await fs.readFile(`${sourcePath}/file`, 'utf8');
+      expect(srcContent).toEqual('filedata');
+      const mntContent = await fs.readFile(`${mountPath}/file`, 'utf8');
+      expect(mntContent).toEqual('filedata');
+    });
+    it('Appends virtual files, without altering the source tree ', async () => {
+      await fs.appendFile(`${mountPath}/foo/bar`, 'data');
+      const mntContent = await fs.readFile(`${mountPath}/foo/bar`, 'utf8');
+      expect(mntContent).toEqual('contentdata');
+      expect(() => fs.readFile(`${sourcePath}/foo/bar`, 'utf8'))
+        .rejects
+        .toThrow('ENOENT');
     });
   });
-  */
 
 });
