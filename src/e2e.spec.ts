@@ -6,6 +6,7 @@ import { InMemoryFileHandler } from './virtualfs/inMemoryFileHandler.js';
 import * as fs from 'node:fs/promises';
 import rimraf from 'rimraf';
 import { Stats } from 'node:fs';
+import { S_IFREG, S_IRGRP, S_IROTH, S_IRUSR, S_IWGRP, S_IWUSR } from 'node:constants';
 
 const sourcePath = resolve(__dirname, '../test/src')
 const mountPath = resolve(__dirname, '../test/mnt');
@@ -35,13 +36,13 @@ async function createFileTree(sourcePath: string) {
 
 
 const opts: ProgramOpts = { sourcePath, mountPath };
-const files = [
-  new InMemoryFileHandler('/foo/bar', 'content')
-];
 
 describe('fused', () => {
   let unmount: undefined | (()=>void);
   beforeEach(async () => {
+    const files = [
+      new InMemoryFileHandler('/foo/bar', 'content')
+    ];
     await createFileTree(sourcePath);
     unmount = (await main(opts, files)).unmount;
   })
@@ -107,10 +108,23 @@ describe('fused', () => {
         'atime', 'blksize', 'blocks', 'ctime', 'gid', 'mode', 'mtime', 'nlink', 'rdev', 'size', 'uid'
       ];
       for (const field of matchingFields) {
-        it(`.${field}`, async () =>
+        it(`.${field}`, async () => {
           expect(mntStat[field]).toEqual(realStat[field])
-        );
+        });
       }
+    });
+
+    it('Stats virtual files', async () => {
+      const { gid, uid } = await fs.lstat(mountPath);
+      const stat = await fs.lstat(`${mountPath}/foo/bar`);
+      expect(stat).toMatchObject({
+        // Other props are hard to test...
+        size: "content".length,
+        gid,
+        uid,
+        mode: S_IWUSR | S_IWGRP | S_IRUSR | S_IRGRP | S_IROTH | S_IFREG
+      });
+      // TODO: test readonly files
     });
   });
 
