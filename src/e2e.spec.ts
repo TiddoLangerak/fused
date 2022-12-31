@@ -7,6 +7,8 @@ import * as fs from 'node:fs/promises';
 import rimraf from 'rimraf';
 import { Stats } from 'node:fs';
 import { S_IFREG, S_IRGRP, S_IROTH, S_IRUSR, S_IWGRP, S_IWUSR } from 'node:constants';
+import { FileHandle } from 'node:fs/promises';
+import { Awaitable } from './awaitable.js';
 
 const sourcePath = resolve(__dirname, '../test/src')
 const mountPath = resolve(__dirname, '../test/mnt');
@@ -38,7 +40,7 @@ async function createFileTree(sourcePath: string) {
 const opts: ProgramOpts = { sourcePath, mountPath };
 
 describe('fused', () => {
-  let unmount: undefined | (()=>void);
+  let unmount: undefined | (()=>Promise<unknown>);
   beforeEach(async () => {
     const files = [
       new InMemoryFileHandler('/foo/bar', 'content')
@@ -128,6 +130,52 @@ describe('fused', () => {
     });
   });
 
+  async function withFile<T>(path: string, cb: ((file: FileHandle)=> Awaitable<T>)): Promise<T> {
+    const file = await fs.open(path);
+    try {
+      return await cb(file);
+    } finally {
+      await file.close();
+    }
+  }
+
+  describe('file.stat', () => {
+    describe('Stats real files', () => {
+      let realStat: Stats;
+      let mntStat: Stats;
+      beforeEach(async () => {
+        realStat = await withFile(`${sourcePath}/file`, file => file.stat());
+        mntStat = await withFile(`${mountPath}/file`, file => file.stat());
+      });
+      // Not all fields match.
+      // E.g. all ms times get rounded
+      const matchingFields: (keyof Stats)[] = [
+        'atime', 'blksize', 'blocks', 'ctime', 'gid', 'mode', 'mtime', 'nlink', 'rdev', 'size', 'uid'
+      ];
+      for (const field of matchingFields) {
+        it(`.${field}`, async () => {
+          expect(mntStat[field]).toEqual(realStat[field])
+        });
+      }
+    });
+
+    // TODO: I wanted to test fgetattr, but it seems this isn't triggered due to kernel bug:
+    // https://github.com/libfuse/libfuse/issues/62
+    it('Stats virtual files', async () => {
+      const { gid, uid } = await fs.lstat(mountPath);
+      const stat = await withFile(`${mountPath}/foo/bar`, file => file.stat());
+      console.log(stat);
+      expect(stat).toMatchObject({
+        // Other props are hard to test...
+        size: "content".length,
+        gid,
+        uid,
+        mode: S_IWUSR | S_IWGRP | S_IRUSR | S_IRGRP | S_IROTH | S_IFREG
+      });
+      // TODO: test readonly files
+    });
+  });
+
   describe('mkdir/rmdir', () => {
     it('creates & removes real folders', async () => {
       await fs.mkdir(`${mountPath}/bla`);
@@ -142,7 +190,6 @@ describe('fused', () => {
         .rejects
         .toThrow("ENOENT");
     });
-    // TODO: need to find a better way to test this
     it('creates & removes real folders through virtual folders', async () => {
       await fs.mkdir(`${mountPath}/foo/foo`);
       expect((await fs.lstat(`${mountPath}/foo/foo`)).isDirectory()).toBe(true);

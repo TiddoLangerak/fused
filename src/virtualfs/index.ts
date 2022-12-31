@@ -104,9 +104,8 @@ export class VirtualFs implements FusedHandlers {
     }
   };
 
-  fgetattr = (a: string, b: number) : Awaitable<Stat> => {
-    // TODO:
-    return todo("fgetattr");
+  fgetattr = (path: string, fd: number) : Awaitable<Stat> => {
+    return this.getattr(path);
   };
   flush = (path: string, fd: number) : Awaitable<void> => {
     const file = this.#getFile(fd);
