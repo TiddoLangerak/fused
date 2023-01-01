@@ -8,6 +8,7 @@ import { Stats } from 'node:fs';
 import { S_IFREG, S_IRGRP, S_IROTH, S_IRUSR, S_IWGRP, S_IWUSR } from 'node:constants';
 import { FileHandle } from 'node:fs/promises';
 import { Awaitable } from './awaitable.js';
+import { pick } from './util.js';
 
 const sourceRoot = resolve(__dirname, '../test/src')
 const mountRoot = resolve(__dirname, '../test/mnt');
@@ -89,6 +90,7 @@ async function cleanup(handle: FusedHandle) {
 
 describe('fused', () => {
   let fusedHandle: FusedHandle;
+
   beforeEach(async () => fusedHandle = await setupFileSystem());
   afterEach(() => cleanup(fusedHandle));
 
@@ -132,74 +134,58 @@ describe('fused', () => {
        check('/foo/bar', 'data', { mnt: 'contentdata', src: { err: 'ENOENT' }}));
   });
 
-  describe('lstat', () => {
-    describe('Stats real files', () => {
-      let realStat: Stats;
-      let mntStat: Stats;
-      beforeEach(async () => {
-        realStat = await fs.lstat(`${sourceRoot}/file`);
-        mntStat = await fs.lstat(`${mountRoot}/file`);
-      });
-      // Not all fields match.
-      // E.g. all ms times get rounded
-      const matchingFields: (keyof Stats)[] = [
-        'atime', 'blksize', 'blocks', 'ctime', 'gid', 'mode', 'mtime', 'nlink', 'rdev', 'size', 'uid'
-      ];
-      for (const field of matchingFields) {
-        it(`.${field}`, async () => {
-          expect(mntStat[field]).toEqual(realStat[field])
-        });
-      }
+  describe('stat', () => {
+    let gid: number;
+    let uid: number;
+
+    beforeAll(async() => {
+      const stat = await fs.lstat(mountRoot);
+      gid = stat.gid;
+      uid = stat.uid;
     });
 
-    it('Stats virtual files', async () => {
-      const { gid, uid } = await fs.lstat(mountRoot);
-      const stat = await fs.lstat(`${mountRoot}/foo/bar`);
-      expect(stat).toMatchObject({
-        // Other props are hard to test...
+    type StatFn = (file: string) => Promise<Stats>;
+    async function check(file: string, statFn: StatFn, expected: Object) {
+      const stat = await statFn(mnt(file));
+      expect(stat).toMatchObject(expected);
+    }
+    async function checkReal(file: string, statFn: StatFn) {
+      // Not all properties will match exactly with the source, e.g. times get rounded to nearest ms.
+      // So we only assert on those that match exactly
+      const expected = pick(
+        await fs.lstat(src(file)),
+        ['atime', 'blksize', 'blocks', 'ctime', 'gid', 'mode', 'mtime', 'nlink', 'rdev', 'size', 'uid']
+      );
+      await check(file, statFn, expected);
+    }
+
+    describe('fs.lstat', () => {
+      it('Stats real files', () => checkReal('/file', fs.stat));
+
+      it('Stats virtual files', () => check('/foo/bar', fs.stat, {
+        // Other props are hard to test, so we'll leave it at these for now
         size: "content".length,
         gid,
         uid,
         mode: S_IWUSR | S_IWGRP | S_IRUSR | S_IRGRP | S_IROTH | S_IFREG
-      });
-      // TODO: test readonly files
-    });
-  });
-
-  describe('file.stat', () => {
-    describe('Stats real files', () => {
-      let realStat: Stats;
-      let mntStat: Stats;
-      // TODO: can we do beforeall?
-      beforeEach(async () => {
-        realStat = await withFile(`${sourceRoot}/file`, file => file.stat());
-        mntStat = await withFile(`${mountRoot}/file`, file => file.stat());
-      });
-      // Not all fields match.
-      // E.g. all ms times get rounded
-      const matchingFields: (keyof Stats)[] = [
-        'atime', 'blksize', 'blocks', 'ctime', 'gid', 'mode', 'mtime', 'nlink', 'rdev', 'size', 'uid'
-      ];
-      for (const field of matchingFields) {
-        it(`.${field}`, async () => {
-          expect(mntStat[field]).toEqual(realStat[field])
-        });
-      }
+      }));
+      // TODO: readonly
     });
 
-    // TODO: I wanted to test fgetattr, but it seems this isn't triggered due to kernel bug:
-    // https://github.com/libfuse/libfuse/issues/62
-    it('Stats virtual files', async () => {
-      const { gid, uid } = await fs.lstat(mountRoot);
-      const stat = await withFile(`${mountRoot}/foo/bar`, file => file.stat());
-      expect(stat).toMatchObject({
-        // Other props are hard to test...
-        size: "content".length,
-        gid,
-        uid,
-        mode: S_IWUSR | S_IWGRP | S_IRUSR | S_IRGRP | S_IROTH | S_IFREG
-      });
-      // TODO: test readonly files
+    describe('file.stat', () => {
+      const fileStat = (path: string) => withFile(path, file => file.stat());
+
+      it('Stats real files', () => checkReal('/file', fileStat));
+
+      it('Stats virtual files', () => check('/foo/bar', fileStat, {
+          // Other props are hard to test, so we'll leave it at these for now
+          size: "content".length,
+          gid,
+          uid,
+          mode: S_IWUSR | S_IWGRP | S_IRUSR | S_IRGRP | S_IROTH | S_IFREG
+      }));
+
+      // TODO: readonly
     });
   });
 
