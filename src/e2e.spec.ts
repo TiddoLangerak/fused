@@ -33,7 +33,7 @@ async function setupFileSystem(): Promise<FusedHandle> {
 // Can we test this?
 
 async function withFile<T>(path: string, cb: ((file: FileHandle)=> Awaitable<T>)): Promise<T> {
-  const file = await fs.open(path);
+  const file = await fs.open(path, 'r+');
   try {
     return await cb(file);
   } finally {
@@ -57,6 +57,8 @@ function src(path: string) {
 }
 
 type ReadResult = string | { err: string };
+type DualReadResult = { src: ReadResult, mnt: ReadResult };
+
 async function checkContent(fullPath: string, result: ReadResult) {
   const content = fs.readFile(fullPath, 'utf8');
   if (typeof result === 'string') {
@@ -64,6 +66,12 @@ async function checkContent(fullPath: string, result: ReadResult) {
   } else {
     expect(() => content).rejects.toThrow(result.err);
   }
+}
+
+async function checkContents(path: string, results: DualReadResult) {
+  const { mntPath, srcPath } = paths(path);
+  await checkContent(mntPath, results.mnt);
+  await checkContent(srcPath, results.src);
 }
 
 async function rmrf(path: string) {
@@ -118,14 +126,10 @@ describe('fused', () => {
   });
 
   describe('appendFile', () => {
-    type Expected = { src: ReadResult, mnt: ReadResult };
 
-    async function check(file: string, append: string, expected: Expected) {
-      const { mntPath, srcPath } = paths(file);
-      await fs.appendFile(mntPath, append);
-
-      checkContent(srcPath, expected.src);
-      checkContent(mntPath, expected.mnt);
+    async function check(file: string, append: string, expected: DualReadResult) {
+      await fs.appendFile(mnt(file), append);
+      await checkContents(file, expected);
     }
 
     it('Appends to actual files in the source & mnt tree', () =>
@@ -216,5 +220,17 @@ describe('fused', () => {
       // Just checking that it doesn't error
       await fs.lstat(`${mountRoot}/foo`);
     });
+  });
+
+  describe.only('file.truncate', () => {
+    async function check(path: string, len: number, results: DualReadResult) {
+      await withFile(mnt(path), file => file.truncate(len));
+      await checkContents(path, results);
+    }
+
+    it('fully truncates real files', () => check('/file', 0, { src: "", mnt: "" }));
+    it('partially truncates real files', () => check('/file', 2, { src: "fi", mnt: "fi" }));
+    it('fully truncates virtual files', () => check('/foo/bar', 0, { src: { err: "ENOENT" }, mnt: "" }));
+    it('partially truncates virtual files', () => check('/foo/bar', 2, { src: { err: "ENOENT" }, mnt: "co" }));
   });
 });

@@ -36,6 +36,7 @@ type InternalFd = {
   type: 'dir',
   path: string
 } | {
+  // TODO: this should probably be turned into a class
   type: 'file',
   path: string,
   content: Buffer,
@@ -129,11 +130,14 @@ export class VirtualFs implements FusedHandlers {
       } else {
         original.copy(newBuf);
       }
+      // TODO: this is broken. It should have a writeFile
+      // First need test.
     }
   };
-  ftruncate = (a: string, b: number, c: number) : Awaitable<void> => {
-    // TODO
-    return todo("ftruncate");
+  ftruncate = (path: string, fd: number, size: number) : Awaitable<void> => {
+    const file = this.#getFile(fd);
+    file.size = Math.min(file.size, size);
+    file.hasPendingContent = true;
   };
   readlink = (a: string) : Awaitable<string> => {
     // TODO
