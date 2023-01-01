@@ -1,6 +1,6 @@
-import { basename, dirname, resolve } from 'path';
+import { basename, dirname, join, resolve } from 'path';
 // TODO: move main to separate file
-import { main } from './lib.js';
+import { FusedHandle, main, Unmount } from './lib.js';
 import { ProgramOpts } from './opts.js';
 import { InMemoryFileHandler } from './virtualfs/inMemoryFileHandler.js';
 import * as fs from 'node:fs/promises';
@@ -12,11 +12,34 @@ import { Awaitable } from './awaitable.js';
 
 const sourcePath = resolve(__dirname, '../test/src')
 const mountPath = resolve(__dirname, '../test/mnt');
+const opts: ProgramOpts = { sourcePath, mountPath };
 
 const sourceFiles = {
   'dir/foo': 'foo',
   'file': 'file',
 };
+
+async function setupFileSystem(): Promise<FusedHandle> {
+  const files = [
+    new InMemoryFileHandler('/foo/bar', 'content')
+  ];
+  await createFileTree(sourcePath);
+  return await main(opts, files);
+}
+
+
+// TODO: Something properly crashes when we open a file but not close it.
+// Can we test this?
+
+async function withFile<T>(path: string, cb: ((file: FileHandle)=> Awaitable<T>)): Promise<T> {
+  const file = await fs.open(path);
+  try {
+    return await cb(file);
+  } finally {
+    await file.close();
+  }
+}
+
 
 async function rmrf(path: string) {
   await new Promise((resolve, reject) => rimraf(sourcePath, err => err ? reject(err) : resolve(undefined)));
@@ -36,36 +59,28 @@ async function createFileTree(sourcePath: string) {
   }
 }
 
-
-const opts: ProgramOpts = { sourcePath, mountPath };
+async function cleanup(handle: FusedHandle) {
+  await handle.unmount();
+  await rmrf(sourcePath);
+}
 
 describe('fused', () => {
-  let unmount: undefined | (()=>Promise<unknown>);
-  beforeEach(async () => {
-    const files = [
-      new InMemoryFileHandler('/foo/bar', 'content')
-    ];
-    await createFileTree(sourcePath);
-    unmount = (await main(opts, files)).unmount;
-  })
-  afterEach(async () => {
-    unmount && await unmount();
-    await rmrf(sourcePath);
-  });
+  let fusedHandle: FusedHandle;
+  beforeEach(async () => fusedHandle = await setupFileSystem());
+  afterEach(() => cleanup(fusedHandle));
 
   describe("readdir", () => {
-    it('shows the correct folder content at root', async () => {
-      const content = await fs.readdir(mountPath);
-      expect(content.sort()).toEqual(["dir", "file", "foo"]);
-    });
-    it('shows the correct folder content for virtual folders', async () => {
-      const content = await fs.readdir(`${mountPath}/foo`);
-      expect(content.sort()).toEqual(["bar"]);
-    });
-    it('shows the correct folder content for folders without virtual content', async () => {
-      const content = await fs.readdir(`${mountPath}/dir`);
-      expect(content.sort()).toEqual(["foo"]);
-    });
+    async function check(folder: string, expectedContent: string[]) {
+      const path = join(mountPath, folder);
+      const content = await fs.readdir(path);
+      expect(content.sort()).toEqual(expectedContent.sort());
+    }
+    it('shows the correct folder content at root', () =>
+       check('/', ["dir", "file", "foo"]));
+    it('shows the correct folder content for virtual folders', () =>
+       check('/foo', ["bar"]));
+    it('shows the correct folder content for folders without virtual content', () =>
+       check("/dir", ["foo"]));
   });
 
   describe('access', () => {
@@ -130,19 +145,11 @@ describe('fused', () => {
     });
   });
 
-  async function withFile<T>(path: string, cb: ((file: FileHandle)=> Awaitable<T>)): Promise<T> {
-    const file = await fs.open(path);
-    try {
-      return await cb(file);
-    } finally {
-      await file.close();
-    }
-  }
-
   describe('file.stat', () => {
     describe('Stats real files', () => {
       let realStat: Stats;
       let mntStat: Stats;
+      // TODO: can we do beforeall?
       beforeEach(async () => {
         realStat = await withFile(`${sourcePath}/file`, file => file.stat());
         mntStat = await withFile(`${mountPath}/file`, file => file.stat());
@@ -164,7 +171,6 @@ describe('fused', () => {
     it('Stats virtual files', async () => {
       const { gid, uid } = await fs.lstat(mountPath);
       const stat = await withFile(`${mountPath}/foo/bar`, file => file.stat());
-      console.log(stat);
       expect(stat).toMatchObject({
         // Other props are hard to test...
         size: "content".length,
@@ -177,32 +183,25 @@ describe('fused', () => {
   });
 
   describe('mkdir/rmdir', () => {
-    it('creates & removes real folders', async () => {
-      await fs.mkdir(`${mountPath}/bla`);
-      expect((await fs.lstat(`${mountPath}/bla`)).isDirectory()).toBe(true);
-      expect((await fs.lstat(`${sourcePath}/bla`)).isDirectory()).toBe(true);
+    async function check(folder: string) {
+      const inMnt = join(mountPath, folder);
+      const inSrc = join(sourcePath, folder);
+      await fs.mkdir(inMnt);
+      expect((await fs.lstat(inSrc)).isDirectory()).toBe(true);
+      expect((await fs.lstat(inMnt)).isDirectory()).toBe(true);
 
-      await fs.rmdir(`${mountPath}/bla`);
-      expect(() => fs.lstat(`${mountPath}/bla`))
+      await fs.rmdir(inMnt);
+      expect(() => fs.lstat(inMnt))
         .rejects
         .toThrow("ENOENT");
-      expect(() => fs.lstat(`${sourcePath}/bla`))
+      expect(() => fs.lstat(inSrc))
         .rejects
         .toThrow("ENOENT");
-    });
-    it('creates & removes real folders through virtual folders', async () => {
-      await fs.mkdir(`${mountPath}/foo/foo`);
-      expect((await fs.lstat(`${mountPath}/foo/foo`)).isDirectory()).toBe(true);
-      expect((await fs.lstat(`${sourcePath}/foo/foo`)).isDirectory()).toBe(true);
+    }
 
-      await fs.rmdir(`${mountPath}/foo/foo`);
-      expect(() => fs.lstat(`${mountPath}/foo/foo`))
-        .rejects
-        .toThrow("ENOENT");
-      expect(() => fs.lstat(`${sourcePath}/foo/foo`))
-        .rejects
-        .toThrow("ENOENT");
-    });
+    it('creates & removes real folders', () => check('bla'));
+    it('creates & removes real folders through virtual folders', () => check('foo/foo'));
+
     it(`can't remove virtual folders`, async () => {
       expect(() => fs.rmdir(`${mountPath}/foo`))
         .rejects

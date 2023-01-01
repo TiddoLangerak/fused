@@ -17,7 +17,12 @@ async function validateOpts({ sourcePath, mountPath }: ProgramOpts) {
   }
 }
 
-export async function main(opts: ProgramOpts, files: VirtualFileHandler[]) {
+export type Unmount = () => Promise<void>;
+export type FusedHandle = {
+  unmount: Unmount
+};
+
+export async function main(opts: ProgramOpts, files: VirtualFileHandler[]): Promise<FusedHandle> {
   assert(files.length === 1, "TODO: not yet implemented support for multiple handlers");
 
   await validateOpts(opts);
@@ -44,7 +49,7 @@ export async function main(opts: ProgramOpts, files: VirtualFileHandler[]) {
     });
   });
 
-  function unmount() {
+  function unmount(): Promise<void> {
     return new Promise((resolve, reject) => {
       fuse.close((err) => {
         process.off('SIGINT', sigintHandler);
@@ -79,4 +84,5 @@ export async function main(opts: ProgramOpts, files: VirtualFileHandler[]) {
 
   return { unmount };
 }
+
 
