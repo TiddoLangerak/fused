@@ -10,6 +10,7 @@ import { FileHandle } from 'node:fs/promises';
 import { Awaitable } from './awaitable.js';
 import { pick } from './util.js';
 import * as childProcess from 'node:child_process';
+import { debug } from './debug.js';
 
 const sourceRoot = resolve(__dirname, '../test/src')
 const mountRoot = resolve(__dirname, '../test/mnt');
@@ -104,17 +105,23 @@ describe('fused', () => {
   afterEach(() => cleanup(fusedHandle));
 
   describe("readdir", () => {
-    async function check(folder: string, expectedContent: string[]) {
-      const path = mnt(folder);
-      const content = await fs.readdir(path);
-      expect(content.sort()).toEqual(expectedContent.sort());
+    describe('fs.readdir', () => test(fs.readdir));
+    describe('ls', () => test(async (path) => (await run(`ls ${path}`))[0].split(' ')));
+
+    type ReaddirFn = (path: string) => Promise<string[]>;
+    function test(readdirFn: ReaddirFn) {
+      async function check(folder: string, expectedContent: string[]) {
+        const path = mnt(folder);
+        const content = await fs.readdir(path);
+        expect(content.sort()).toEqual(expectedContent.sort());
+      }
+      it('shows the correct folder content at root', () =>
+         check('/', ["dir", "file", "foo"]));
+      it('shows the correct folder content for virtual folders', () =>
+         check('/foo', ["bar"]));
+      it('shows the correct folder content for folders without virtual content', () =>
+         check("/dir", ["foo"]));
     }
-    it('shows the correct folder content at root', () =>
-       check('/', ["dir", "file", "foo"]));
-    it('shows the correct folder content for virtual folders', () =>
-       check('/foo', ["bar"]));
-    it('shows the correct folder content for folders without virtual content', () =>
-       check("/dir", ["foo"]));
   });
 
   describe('access', () => {
@@ -127,16 +134,23 @@ describe('fused', () => {
   });
 
   describe('appendFile', () => {
+    describe('fs.appendFile', () => test(fs.appendFile));
+    describe('sh -c "printf >> file"', () => test((path, content) => run(`printf "${content}" >> ${path}`)));
 
-    async function check(file: string, append: string, expected: DualReadResult) {
-      await fs.appendFile(mnt(file), append);
-      await checkContents(file, expected);
+    type AppendFn = (file: string, content: string) => Promise<unknown>;
+    function test(appendFn: AppendFn) {
+      async function check(file: string, append: string, expected: DualReadResult) {
+        await appendFn(mnt(file), append);
+        await checkContents(file, expected);
+      }
+
+      it('Appends to actual files in the source & mnt tree', () =>
+         check('/file', 'data', { mnt: 'filedata', src: 'filedata' }));
+      it('Appends virtual files, without altering the source tree ', () =>
+         check('/foo/bar', 'data', { mnt: 'contentdata', src: { err: 'ENOENT' }}));
     }
 
-    it('Appends to actual files in the source & mnt tree', () =>
-       check('/file', 'data', { mnt: 'filedata', src: 'filedata' }));
-    it('Appends virtual files, without altering the source tree ', () =>
-       check('/foo/bar', 'data', { mnt: 'contentdata', src: { err: 'ENOENT' }}));
+
   });
 
   describe('stat', () => {
@@ -232,6 +246,7 @@ describe('fused', () => {
 
 function run(command: string): Promise<[string, string]> {
   return new Promise((resolve, reject) => {
+    debug("Running", command);
     childProcess.exec(command, (err, stdout, stderr) => err ? reject(err) : resolve([stdout, stderr]));
   });
 }

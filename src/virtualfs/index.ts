@@ -135,7 +135,7 @@ export class VirtualFs implements FusedHandlers {
       // Can't be tested in e2e. YOLO?
     }
   };
-  ftruncate = (path: string, fd: number, size: number) : Awaitable<void> => {
+  ftruncate = async (path: string, fd: number, size: number) : Promise<void> => {
     const file = this.#getFile(fd);
     file.size = Math.min(file.size, size);
     file.hasPendingContent = true;
@@ -146,7 +146,7 @@ export class VirtualFs implements FusedHandlers {
     // meaning, this stat still uses outdated data.
     // Either we'll need to flush after write, or after truncate.
     // For now, we'll flush after truncate, when internet we can investigate online
-    this.flush(path, fd);
+    await this.flush(path, fd);
   };
   readlink = (a: string) : Awaitable<string> => {
     // TODO
@@ -204,7 +204,7 @@ export class VirtualFs implements FusedHandlers {
   rmdir = (a: string) : Awaitable<void> => {
     throw new IOError(Fuse.EPERM, "Cannot remove virtual directory");
   };
-  write = (path: string, fd: number, buffer: Buffer, length: number, position: number): Awaitable<number> => {
+  write = async (path: string, fd: number, buffer: Buffer, length: number, position: number): Promise<number> => {
     const file = this.#getFile(fd);
 
     const neededBufferSize = position+length;
@@ -217,9 +217,7 @@ export class VirtualFs implements FusedHandlers {
     return buffer.copy(file.content, position, 0, length);
   }
   read = (path: string, fd: number, buffer: Buffer, length: number, position: number): Awaitable<number> => {
-    // TODO
     const file = this.#getFile(fd);
-
     const endpos = Math.min(position + length, file.content.length);
 
     return file.content.copy(buffer, 0, position, endpos);
