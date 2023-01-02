@@ -40,11 +40,12 @@ export async function main(opts: ProgramOpts, files: VirtualFileHandler[]): Prom
   );
 
   await new Promise((resolve, reject) => {
-    fuse.mount(err => {
+    fuse.mount(async err => {
       if (err) {
         console.error("Couldn't mount", err);
         reject(err);
       }
+
       resolve(null);
     });
   });

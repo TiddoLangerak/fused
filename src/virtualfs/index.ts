@@ -190,9 +190,12 @@ export class VirtualFs implements FusedHandlers {
       throw new IOError(Fuse.EINVAL, "Cannot remove virtual file");
     }
   };
-  rename = (a: string, b: string) : Awaitable<void> => {
-    // TODO
-    return todo("rename");
+  rename = (from: string, to: string) : Awaitable<void> => {
+    // Renaming virtual files is sketchy and risks data loss.
+    // E.g. renaming a real file into a virtual file could lose the file.
+    // For now, better to just not support renaming.
+    // TODO: different error
+    throw new IOError(Fuse.EINVAL, "Cannot rename from/to virtual files");
   };
   symlink = (a: string, b: string) : Awaitable<void> => {
     // TODO: check error code

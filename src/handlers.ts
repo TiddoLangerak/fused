@@ -134,7 +134,17 @@ export const makeHandlers = (realFs: RealFs, virtualFs: VirtualFs): Partial<Hand
     releasedir: fromFd,
     utimens: virtualFirst,
     unlink: virtualFirst,
-    rename: virtualFirst,
+    rename: (real, virtual) => async (from: string, to: string) => {
+      const fromHandles = await virtualFs.handles(from);
+      const toHandles = await virtualFs.handles(to);
+      if (fromHandles === 'self' || toHandles === 'self') {
+        return await virtual(from, to);
+      }
+      if (fromHandles === 'other_with_fallback' || toHandles === 'other_with_fallback') {
+        return await realWithFallback(real, virtual, [from, to]);
+      }
+      return await real(from, to);
+    },
     mkdir: (real, virtual) => async (path: string, mode: number) => {
       // TODO: refactor this into something nice?
       const parent = dirname(path);

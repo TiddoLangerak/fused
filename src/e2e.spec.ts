@@ -259,6 +259,36 @@ describe('fused', () => {
       expect(stat.mtime).toEqual(expectedDate);
     });
   });
+
+  describe("rename", () => {
+    async function checkUnsupported(src: string, dest: string) {
+        // TODO: some caches apparently aren't cleared immediately.
+      // Symptoms:
+      // - /x and /foo/bar are on different devices (no they're not)
+      // - ENOENT on /file
+         await new Promise((resolve) => setTimeout(() => resolve(null), 100));
+        expect(() => fs.rename(mnt(src), mnt(dest)))
+          .rejects
+          .toThrow("EINVAL"); // TODO: error code
+    }
+    describe("real -> real", () => {
+      it("Renames the files", async () => {
+        await fs.rename(mnt("/file"), mnt("/newfile"));
+        await checkContents("/newfile", { src: "file", mnt: "file" });
+        await checkContents("/file", { src: { err: "ENOENT" }, mnt: { err: "ENOENT" } });
+      });
+    });
+    describe("virtual -> real", () => {
+      it("Is not supported", () => checkUnsupported("/foo/bar", "/x"));
+    });
+    describe("real -> virtual", () => {
+      it("Is not supported", () => checkUnsupported("/file", "/foo/bar"));
+    });
+      // TODO: fix test, currently only have 1 virtual file
+    describe.skip("virtual -> virtual", () => {
+      it("Is not supported", () => checkUnsupported("/foo/bar", "/foo/baz"));
+    });
+  });
 });
 
 function run(command: string): Promise<[string, string]> {
