@@ -28,5 +28,6 @@ export type VirtualFileHandler = {
   writeFile(path: string, content: Buffer): Awaitable<void>;
   stat: (path: string) => Awaitable<MiniStat>;
   updateModificationTime?: (path: string, modificationTime: Date) => Awaitable<void>;
+  remove?: (path: string) => Awaitable<void>;
 }
 

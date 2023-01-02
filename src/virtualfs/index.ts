@@ -181,21 +181,26 @@ export class VirtualFs implements FusedHandlers {
       this.#handler.updateModificationTime(path, modificationTime);
     }
   };
-  unlink = (a: string) : Awaitable<void> => {
-    // TODO
-    return todo("unlink");
+  unlink = async (path: string) : Promise<void> => {
+    // TODO: test
+    if (this.#handler.remove) {
+      await this.#handler.remove(path);
+    } else {
+      // TODO: different error
+      throw new IOError(Fuse.EINVAL, "Cannot remove virtual file");
+    }
   };
   rename = (a: string, b: string) : Awaitable<void> => {
     // TODO
     return todo("rename");
   };
   symlink = (a: string, b: string) : Awaitable<void> => {
-    // TODO
-    return todo("symlink");
+    // TODO: check error code
+    throw new IOError(Fuse.EINVAL, "Virtual files don't support symlink");
   };
   link = (a: string, b: string) : Awaitable<void> => {
-    // TODO
-    return todo("link");
+    // TODO: check error code
+    throw new IOError(Fuse.EINVAL, "Virtual files don't support links");
   };
   mkdir = async (path: string, mode: number) : Promise<void> => {
     await mkdir(this.#realFs.getAbsolutePath(path), { recursive: true, mode });
