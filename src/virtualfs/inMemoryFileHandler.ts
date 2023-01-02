@@ -64,4 +64,8 @@ export class InMemoryFileHandler implements VirtualFileHandler {
       throw new FileNotFoundError(path);
     }
   }
+  updateModificationTime(path: string, mtime: Date) {
+    assert(path === this.#path, new FileNotFoundError(path));
+    this.#modificationTime = mtime;
+  }
 }

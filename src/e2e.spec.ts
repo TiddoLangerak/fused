@@ -242,6 +242,23 @@ describe('fused', () => {
       it('partially truncates virtual files', () => check('/foo/bar', 2, { src: { err: "ENOENT" }, mnt: "co" }));
     }
   });
+  describe("utimes", () => {
+    it("updates modification time", async () => {
+      const newDate = new Date();
+
+      // Due to floating point shenannigans, we should only work with whole seconds here.
+      // This is more of a JS thing rather than a unix thing.
+      // Without this we get rounding errors
+      const unixDate = Math.floor(newDate.valueOf() / 1000);
+      const expectedDate = new Date(unixDate * 1000);
+
+      await fs.utimes(mnt("/foo/bar"), unixDate, unixDate);
+      const stat = await fs.stat(mnt("/foo/bar"));
+
+      expect(stat.atime).toEqual(expectedDate);
+      expect(stat.mtime).toEqual(expectedDate);
+    });
+  });
 });
 
 function run(command: string): Promise<[string, string]> {

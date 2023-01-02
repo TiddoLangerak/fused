@@ -157,9 +157,9 @@ export class VirtualFs implements FusedHandlers {
     // TODO: better error
     throw new IOError(Fuse.EINVAL, "Virtual files can't be chmod-ed");
   };
-  mknod = (path: string, mode: number, dev: string) : Awaitable<void> => {
-    // TODO
-    return todo("mknod");
+  mknod = async (path: string, mode: number, dev: string) : Promise<void> => {
+    // TODO: test
+    await this.#handler.writeFile(path, Buffer.alloc(0));
   };
   open = async (path: string, mode: number) => {
     // TODO: how to deal with concurrent r/w access?
@@ -175,9 +175,11 @@ export class VirtualFs implements FusedHandlers {
   opendir = (path: string, flags: number) => this.#fdMapper.insert({ type: 'dir', path });
   release = (path: string, fd: number) => this.#fdMapper.clear(fd);
   releasedir = (path: string, fd: number) => this.#fdMapper.clear(fd);
-  utimens = (a: string, b: number, c: number) : Awaitable<void> => {
-    // TODO
-    return todo("utimens");
+  utimens = (path: string, atime: number, mtime: number) : Awaitable<void> => {
+    if (this.#handler.updateModificationTime) {
+      const modificationTime = new Date(Math.max(atime, mtime));
+      this.#handler.updateModificationTime(path, modificationTime);
+    }
   };
   unlink = (a: string) : Awaitable<void> => {
     // TODO

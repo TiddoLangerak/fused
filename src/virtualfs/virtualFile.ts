@@ -26,6 +26,7 @@ export type VirtualFileHandler = {
   // TODO: error handling
   readFile(path: string): Awaitable<FileContent>;
   writeFile(path: string, content: Buffer): Awaitable<void>;
-  stat: (path: string) => Awaitable<MiniStat>
+  stat: (path: string) => Awaitable<MiniStat>;
+  updateModificationTime?: (path: string, modificationTime: Date) => Awaitable<void>;
 }
 
