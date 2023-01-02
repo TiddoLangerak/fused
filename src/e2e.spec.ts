@@ -9,6 +9,7 @@ import { S_IFREG, S_IRGRP, S_IROTH, S_IRUSR, S_IWGRP, S_IWUSR } from 'node:const
 import { FileHandle } from 'node:fs/promises';
 import { Awaitable } from './awaitable.js';
 import { pick } from './util.js';
+import * as childProcess from 'node:child_process';
 
 const sourceRoot = resolve(__dirname, '../test/src')
 const mountRoot = resolve(__dirname, '../test/mnt');
@@ -148,25 +149,27 @@ describe('fused', () => {
       uid = stat.uid;
     });
 
+    describe('fs.lstat', () => test(fs.stat));
+    describe('file.stat', () => test(path => withFile(path, file => file.stat())));
+
     type StatFn = (file: string) => Promise<Stats>;
-    async function check(file: string, statFn: StatFn, expected: Object) {
-      const stat = await statFn(mnt(file));
-      expect(stat).toMatchObject(expected);
-    }
-    async function checkReal(file: string, statFn: StatFn) {
-      // Not all properties will match exactly with the source, e.g. times get rounded to nearest ms.
-      // So we only assert on those that match exactly
-      const expected = pick(
-        await fs.lstat(src(file)),
-        ['atime', 'blksize', 'blocks', 'ctime', 'gid', 'mode', 'mtime', 'nlink', 'rdev', 'size', 'uid']
-      );
-      await check(file, statFn, expected);
-    }
+    function test(statFn: StatFn) {
+      async function check(file: string, expected: Object) {
+        const stat = await statFn(mnt(file));
+        expect(stat).toMatchObject(expected);
+      }
+      async function checkReal(file: string) {
+        // Not all properties will match exactly with the source, e.g. times get rounded to nearest ms.
+        // So we only assert on those that match exactly
+        const expected = pick(
+          await fs.lstat(src(file)),
+          ['atime', 'blksize', 'blocks', 'ctime', 'gid', 'mode', 'mtime', 'nlink', 'rdev', 'size', 'uid']
+        );
+        await check(file, expected);
+      }
 
-    describe('fs.lstat', () => {
-      it('Stats real files', () => checkReal('/file', fs.stat));
-
-      it('Stats virtual files', () => check('/foo/bar', fs.stat, {
+      it('Stats real files', () => checkReal('/file'));
+      it('Stats virtual files', () => check('/foo/bar', {
         // Other props are hard to test, so we'll leave it at these for now
         size: "content".length,
         gid,
@@ -174,23 +177,8 @@ describe('fused', () => {
         mode: S_IWUSR | S_IWGRP | S_IRUSR | S_IRGRP | S_IROTH | S_IFREG
       }));
       // TODO: readonly
-    });
+    }
 
-    describe('file.stat', () => {
-      const fileStat = (path: string) => withFile(path, file => file.stat());
-
-      it('Stats real files', () => checkReal('/file', fileStat));
-
-      it('Stats virtual files', () => check('/foo/bar', fileStat, {
-          // Other props are hard to test, so we'll leave it at these for now
-          size: "content".length,
-          gid,
-          uid,
-          mode: S_IWUSR | S_IWGRP | S_IRUSR | S_IRGRP | S_IROTH | S_IFREG
-      }));
-
-      // TODO: readonly
-    });
   });
 
   describe('mkdir/rmdir', () => {
@@ -222,15 +210,28 @@ describe('fused', () => {
     });
   });
 
-  describe.only('file.truncate', () => {
-    async function check(path: string, len: number, results: DualReadResult) {
-      await withFile(mnt(path), file => file.truncate(len));
-      await checkContents(path, results);
-    }
+  describe('truncate', () => {
+    describe('sh -c truncate', () => test((path, len) => run(`truncate -s ${len} ${path}`)));
+    describe('truncate', () => test(fs.truncate));
+    describe('file.truncate', () => test((path, len) => withFile(path, file => file.truncate(len))));
 
-    it('fully truncates real files', () => check('/file', 0, { src: "", mnt: "" }));
-    it('partially truncates real files', () => check('/file', 2, { src: "fi", mnt: "fi" }));
-    it('fully truncates virtual files', () => check('/foo/bar', 0, { src: { err: "ENOENT" }, mnt: "" }));
-    it('partially truncates virtual files', () => check('/foo/bar', 2, { src: { err: "ENOENT" }, mnt: "co" }));
+    type TruncateFn = (path: string, len: number) => Awaitable<unknown>;
+    function test(truncateFn: TruncateFn) {
+      async function check(path: string, len: number, results: DualReadResult) {
+        await truncateFn(mnt(path), len);
+        await checkContents(path, results);
+      }
+
+      it('fully truncates real files', () => check('/file', 0, { src: "", mnt: "" }));
+      it('partially truncates real files', () => check('/file', 2, { src: "fi", mnt: "fi" }));
+      it('fully truncates virtual files', () => check('/foo/bar', 0, { src: { err: "ENOENT" }, mnt: "" }));
+      it('partially truncates virtual files', () => check('/foo/bar', 2, { src: { err: "ENOENT" }, mnt: "co" }));
+    }
   });
 });
+
+function run(command: string): Promise<[string, string]> {
+  return new Promise((resolve, reject) => {
+    childProcess.exec(command, (err, stdout, stderr) => err ? reject(err) : resolve([stdout, stderr]));
+  });
+}

@@ -108,10 +108,10 @@ export class VirtualFs implements FusedHandlers {
   fgetattr = (path: string, fd: number) : Awaitable<Stat> => {
     return this.getattr(path);
   };
-  flush = (path: string, fd: number) : Awaitable<void> => {
+  flush = async (path: string, fd: number) : Promise<void> => {
     const file = this.#getFile(fd);
     if (file.hasPendingContent) {
-      this.#handler.writeFile(file.path, file.content.subarray(0, file.size));
+      await this.#handler.writeFile(file.path, file.content.subarray(0, file.size));
     }
     /* Nothing to do */
   };
@@ -132,12 +132,21 @@ export class VirtualFs implements FusedHandlers {
       }
       // TODO: this is broken. It should have a writeFile
       // First need test.
+      // Can't be tested in e2e. YOLO?
     }
   };
   ftruncate = (path: string, fd: number, size: number) : Awaitable<void> => {
     const file = this.#getFile(fd);
     file.size = Math.min(file.size, size);
     file.hasPendingContent = true;
+    // TODO: I don't understand why/if this is needed.
+    // There's something weird on linux.
+    // Linux seems to cache stats internally, and certain file operations seems to invalidate this cache.
+    // Odly, it seems that after a call to ftruncate, we get a stat before a flush
+    // meaning, this stat still uses outdated data.
+    // Either we'll need to flush after write, or after truncate.
+    // For now, we'll flush after truncate, when internet we can investigate online
+    this.flush(path, fd);
   };
   readlink = (a: string) : Awaitable<string> => {
     // TODO
@@ -211,7 +220,9 @@ export class VirtualFs implements FusedHandlers {
     // TODO
     const file = this.#getFile(fd);
 
-    return file.content.copy(buffer, 0, position, position + length);
+    const endpos = Math.min(position + length, file.content.length);
+
+    return file.content.copy(buffer, 0, position, endpos);
   }
 
   #getFile(fd: number) {
