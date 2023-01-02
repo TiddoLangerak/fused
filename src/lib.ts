@@ -29,7 +29,7 @@ export async function main(opts: ProgramOpts, files: VirtualFileHandler[]): Prom
   const realFs = new RealFs(opts);
   const { gid, uid } = await realFs.getattr('/');
 
-  const virtualFs = new VirtualFs(files[0], realFs, gid, uid);
+  const virtualFs = new VirtualFs(files[0], opts, gid, uid);
 
   const handlers = makeHandlers(new RealFs(opts), virtualFs);
 

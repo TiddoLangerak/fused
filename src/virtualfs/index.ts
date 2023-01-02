@@ -4,12 +4,12 @@ export { VirtualFileHandler } from './virtualFile.js';
 import Fuse, { Stat } from 'fuse-native';
 import { S_IFDIR, S_IFREG, S_IRGRP, S_IROTH, S_IRUSR, S_IRWXG, S_IRWXU, S_IWGRP, S_IWUSR, S_IXGRP, S_IXOTH, S_IXUSR } from 'node:constants';
 import { mkdir } from 'node:fs/promises';
-import { todo, unreachable } from '../assert.js';
+import { unreachable } from '../assert.js';
 import { Awaitable } from '../awaitable.js';
 import { IOError } from '../error.js';
 import { FdMapper } from '../fd.js';
 import { FusedHandlers } from '../handlers.js';
-import { RealFs } from '../realFs.js';
+import { resolver, Resolver } from '../path.js';
 import { VirtualFileHandler } from './virtualFile.js';
 
 /**
@@ -20,7 +20,7 @@ import { VirtualFileHandler } from './virtualFile.js';
 
 export type VirtualFsOpts = {
   sourcePath: string,
-  mountPath: string
+  mountPath: string,
 }
 
 // TODO: maybe better?
@@ -48,13 +48,13 @@ export class VirtualFs implements FusedHandlers {
   #fdMapper = new FdMapper<InternalFd>();
   // TODO: Possibly can be some better abstraction.
   // Only using realfs for getting the absolute path in mkdir
-  #realFs: RealFs;
+  #resolver: Resolver;
 
-  constructor(handler: VirtualFileHandler, realFs: RealFs, rootGid: number, rootUid: number) {
+  constructor(handler: VirtualFileHandler, opts: VirtualFsOpts, rootGid: number, rootUid: number) {
     this.#handler = handler;
     this.#rootGid = rootGid;
     this.#rootUid = rootUid;
-    this.#realFs = realFs;
+    this.#resolver = resolver(opts);
   }
   handles = (path: string) => this.#handler.handles(path)
 
@@ -206,7 +206,7 @@ export class VirtualFs implements FusedHandlers {
     throw new IOError(Fuse.EINVAL, "Virtual files don't support links");
   };
   mkdir = async (path: string, mode: number) : Promise<void> => {
-    await mkdir(this.#realFs.getAbsolutePath(path), { recursive: true, mode });
+    await mkdir(this.#resolver(path), { recursive: true, mode });
   };
   rmdir = (a: string) : Awaitable<void> => {
     throw new IOError(Fuse.EPERM, "Cannot remove virtual directory");
