@@ -26,10 +26,6 @@ export type VirtualFsOpts = {
 // TODO: maybe better?
 const INIT_TIME = new Date();
 
-// TODO:
-// - let's let VirtualFs only deal with one handler
-// - And then we layer VirtualFSs on top of each other (we need to build that anyway)
-// - Or, instead, pile up virtual handlers? Though, that might be more of a hassle as we don't have FDs there
 export type Handler = 'self' | 'other' | 'other_with_fallback';
 
 type InternalFd = {
@@ -51,7 +47,7 @@ export class VirtualFs implements FusedHandlers {
   #rootUid: number;
   #fdMapper = new FdMapper<InternalFd>();
   // TODO: Possibly can be some better abstraction.
-  // Only using realfs for getting the absolute path
+  // Only using realfs for getting the absolute path in mkdir
   #realFs: RealFs;
 
   constructor(handler: VirtualFileHandler, realFs: RealFs, rootGid: number, rootUid: number) {
@@ -113,11 +109,12 @@ export class VirtualFs implements FusedHandlers {
     if (file.hasPendingContent) {
       await this.#handler.writeFile(file.path, file.content.subarray(0, file.size));
     }
-    /* Nothing to do */
   };
-  fsync = (a: string, b: number, c: boolean) : Awaitable<void> => {
-    // TODO
-    return todo("fsync");
+  fsync = (path: string, fd: number, datasync: boolean) : Awaitable<void> => {
+    // TODO:
+    // - unsure if flush -> fsync, or fsync -> flush
+    // - unsure what to do about datasync
+    return this.flush(path, fd);
   };
   truncate = async (path: string, size: number) : Promise<void> => {
     if (size === 0) {
@@ -149,18 +146,18 @@ export class VirtualFs implements FusedHandlers {
     await this.flush(path, fd);
   };
   readlink = (a: string) : Awaitable<string> => {
-    // TODO
-    return todo("readlink");
+    // TODO: better error
+    throw new IOError(Fuse.EINVAL, "Virtual files don't support symlink");
   };
   chown = (a: string, b: number, c: number) : Awaitable<void> => {
-    // TODO
-    return todo("chown");
+    // TODO: better error
+    throw new IOError(Fuse.EINVAL, "Virtual files can't be chown-ed");
   };
   chmod = (a: string, b: number) : Awaitable<void> => {
-    // TODO
-    return todo("chmod");
+    // TODO: better error
+    throw new IOError(Fuse.EINVAL, "Virtual files can't be chmod-ed");
   };
-  mknod = (a: string, b: number, c: string) : Awaitable<void> => {
+  mknod = (path: string, mode: number, dev: string) : Awaitable<void> => {
     // TODO
     return todo("mknod");
   };
