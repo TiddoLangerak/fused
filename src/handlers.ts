@@ -24,9 +24,7 @@ async function baseWithFallback<A extends any[], R>(base: AwaitableFunc<A, R>, o
   }
 }
 
-export const makeHandlers = (baseFs: FusedFs, overlayFs: FusedFs): Partial<Handlers> => {
-  const fdMapper = new FdMapper<[FusedFs, Fd]>();
-
+export const addOverlay = (baseFs: FusedFs, overlayFs: FusedFs, fdMapper: FdMapper<[FusedFs, Fd]>): FusedFs => {
   function init(): (() => Promise<void>) {
     return async () => { await Promise.all([ baseFs.init(), overlayFs.init() ]); }
   }
@@ -179,7 +177,13 @@ export const makeHandlers = (baseFs: FusedFs, overlayFs: FusedFs): Partial<Handl
       .map(([ key, val ]) => [key, val((baseFs as any)[key], (overlayFs as any)[key])])
   ) as FusedFs;
 
-  return mapHandlers(combinedFs);
+  return combinedFs;
+}
+
+export const makeHandlers = (baseFs: FusedFs, overlayFs: FusedFs): Partial<Handlers> => {
+  const fdMapper = new FdMapper<[FusedFs, Fd]>();
+
+  return mapHandlers(addOverlay(baseFs, overlayFs, fdMapper));
 };
 
 type SupportedOperations = Exclude<keyof Handlers, 'access' | 'create' | 'fsyncdir' | 'setxattr' | 'getxattr' | 'listxattr' | 'removexattr'>;

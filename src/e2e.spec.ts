@@ -23,7 +23,8 @@ const sourceFiles = {
 };
 
 const virtualFiles = () => [
-    new InMemoryFileHandler('/foo/bar', 'content')
+    new InMemoryFileHandler('/foo/bar', 'content'),
+//    new InMemoryFileHandler('/foo/baz', 'also content')
 ];
 
 const { mnt, src, paths, init, cleanup, checkContents } = testFs(
@@ -36,7 +37,7 @@ describe('fused', () => {
   let fusedHandle: FusedHandle;
 
   beforeEach(async () => fusedHandle = await init());
-  afterEach(() => cleanup(fusedHandle));
+  afterEach(() => fusedHandle && cleanup(fusedHandle));
 
   describe("readdir", () => {
     describe('fs.readdir', () => test(fs.readdir));
