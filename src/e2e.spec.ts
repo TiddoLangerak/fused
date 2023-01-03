@@ -8,7 +8,7 @@ import { Awaitable } from './awaitable.js';
 import { pick } from './util.js';
 import * as childProcess from 'node:child_process';
 import { debug } from './debug.js';
-import { withFile } from './file.js';
+import { exists, withFile } from './file.js';
 import { DualReadResult, testFs } from './test/fs.js';
 import './matchers/file.js';
 
@@ -196,14 +196,16 @@ describe('fused', () => {
 
   describe("rename", () => {
     async function checkUnsupported(src: string, dest: string) {
-        // TODO: some caches apparently aren't cleared immediately.
+      // It seems that some linux (lstat?) caches aren't cleared immediately.
       // Symptoms:
       // - /x and /foo/bar are on different devices (no they're not)
       // - ENOENT on /file
-         await new Promise((resolve) => setTimeout(() => resolve(null), 100));
-        expect(() => fs.rename(mnt(src), mnt(dest)))
-          .rejects
-          .toThrow("ENOSYS"); // TODO: error code
+      //
+      // To avoid this, we first check if mnt(src) exists, which seems to force an update
+      await exists(mnt(src));
+      expect(() => fs.rename(mnt(src), mnt(dest)))
+        .rejects
+        .toThrow("ENOSYS");
     }
     describe("real -> real", () => {
       it("Renames the files", async () => {
