@@ -23,7 +23,6 @@ export type VirtualFsOpts = {
   mountPath: string,
 }
 
-// TODO: maybe better?
 const INIT_TIME = new Date();
 
 export type Handler = 'self' | 'other' | 'other_with_fallback';
@@ -78,8 +77,6 @@ export class VirtualFs implements FusedFs {
   #rootGid: number;
   #rootUid: number;
   #fdMapper = new FdMapper<InternalFd>();
-  // TODO: Possibly can be some better abstraction.
-  // Only using realfs for getting the absolute path in mkdir
   #resolver: Resolver;
 
   constructor(handler: VirtualFileHandler, opts: VirtualFsOpts, rootGid: number, rootUid: number) {
@@ -136,17 +133,16 @@ export class VirtualFs implements FusedFs {
   fgetattr = (path: string, _fd: number) : Awaitable<Stat> => {
     return this.getattr(path);
   };
-  flush = async (_path: string, fd: number) : Promise<void> => {
+  flush = async (path: string, fd: number) : Promise<void> => {
+    await this.fsync(path, fd, false);
+  };
+  fsync = async (_path: string, fd: number, _datasync: boolean) : Promise<void> => {
+    // We ignore the datasync parameter, as it's not really relevant for us.
+    // Datasync parameter is just an optimization, not a requirement.
     const file = this.#getFile(fd);
     if (file.hasPendingContent) {
       await this.#handler.writeFile(file.path, file.content.subarray(0, file.size));
     }
-  };
-  fsync = (path: string, fd: number, datasync: boolean) : Awaitable<void> => {
-    // TODO:
-    // - unsure if flush -> fsync, or fsync -> flush
-    // - unsure what to do about datasync
-    return this.flush(path, fd);
   };
   truncate = async (path: string, size: number) : Promise<void> => {
     if (size === 0) {
@@ -177,16 +173,13 @@ export class VirtualFs implements FusedFs {
     await this.flush(path, fd);
   };
   readlink = () : Awaitable<string> => {
-    // TODO: better error
-    throw new IOError(Fuse.EINVAL, "Virtual files don't support symlink");
+    throw new IOError(Fuse.ENOSYS, "Virtual files don't support symlink");
   };
   chown = () : Awaitable<void> => {
-    // TODO: better error
-    throw new IOError(Fuse.EINVAL, "Virtual files can't be chown-ed");
+    throw new IOError(Fuse.EACCES, "Virtual files can't be chown-ed");
   };
   chmod = () : Awaitable<void> => {
-    // TODO: better error
-    throw new IOError(Fuse.EINVAL, "Virtual files can't be chmod-ed");
+    throw new IOError(Fuse.EACCES, "Virtual files can't be chmod-ed");
   };
   mknod = async (path: string, _mode: number, _dev: string) : Promise<void> => {
     // TODO: test
@@ -213,22 +206,19 @@ export class VirtualFs implements FusedFs {
     }
   };
   unlink = () : Awaitable<void> => {
-    throw new IOError(Fuse.EINVAL, "Cannot remove virtual file");
+    throw new IOError(Fuse.EACCES, "Cannot remove virtual file");
   };
   rename = () : Awaitable<void> => {
     // Renaming virtual files is sketchy and risks data loss.
     // E.g. renaming a real file into a virtual file could lose the file.
     // For now, better to just not support renaming.
-    // TODO: different error
-    throw new IOError(Fuse.EINVAL, "Cannot rename from/to virtual files");
+    throw new IOError(Fuse.ENOSYS, "Cannot rename from/to virtual files");
   };
   symlink = () : Awaitable<void> => {
-    // TODO: check error code
-    throw new IOError(Fuse.EINVAL, "Virtual files don't support symlink");
+    throw new IOError(Fuse.ENOSYS, "Virtual files don't support symlink");
   };
   link = () : Awaitable<void> => {
-    // TODO: check error code
-    throw new IOError(Fuse.EINVAL, "Virtual files don't support links");
+    throw new IOError(Fuse.ENOSYS, "Virtual files don't support links");
   };
   mkdir = async (path: string, mode: number) : Promise<void> => {
     await mkdir(this.#resolver(path), { recursive: true, mode });

@@ -269,7 +269,7 @@ describe('fused', () => {
          await new Promise((resolve) => setTimeout(() => resolve(null), 100));
         expect(() => fs.rename(mnt(src), mnt(dest)))
           .rejects
-          .toThrow("EINVAL"); // TODO: error code
+          .toThrow("ENOSYS"); // TODO: error code
     }
     describe("real -> real", () => {
       it("Renames the files", async () => {
