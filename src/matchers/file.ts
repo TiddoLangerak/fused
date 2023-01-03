@@ -1,5 +1,6 @@
 import { readFile } from "fs/promises";
 import { diff } from 'jest-diff';
+import { exists } from "../file";
 
 async function toHaveContent(
   this: jest.MatcherContext,
@@ -27,14 +28,39 @@ async function toHaveContent(
   }
 }
 
+async function toExist(
+  this: jest.MatcherContext,
+  fullPath: string
+) {
+  const hintOpts = {
+    isNot: this.isNot,
+    promise: this.promise,
+  };
+
+  const hint =
+    this.utils.matcherHint("toExist", "path", undefined, hintOpts) +
+    "\n\n";
+
+  const fileExists = await exists(fullPath);
+  const message = fileExists
+    ? `${hint}Expected file ${fullPath} to not exist.`
+    : `${hint}Expected file ${fullPath} to exist.`;
+  return {
+    pass: fileExists,
+    message: () => message
+  };
+}
+
 expect.extend({
-  toHaveContent
+  toHaveContent,
+  toExist
 });
 
 declare global {
   namespace jest {
     interface Matchers<R> {
       toHaveContent(expected: string): Promise<CustomMatcherResult>;
+      toExist(): Promise<CustomMatcherResult>;
     }
   }
 }

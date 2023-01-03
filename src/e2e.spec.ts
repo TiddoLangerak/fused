@@ -47,19 +47,14 @@ function src(path: string) {
   return join(sourceRoot, path);
 }
 
-type ReadResult = string | { err: string };
+type ReadResult = string | false;
 type DualReadResult = { src: ReadResult, mnt: ReadResult };
 
 async function checkContent(fullPath: string, result: ReadResult) {
-  if (typeof result === 'string') {
-    await expect(fullPath).toHaveContent(result);
-    return;
-  }
-  const content = fs.readFile(fullPath, 'utf8');
-  if (typeof result === 'string') {
-    expect(await content).toEqual(result);
+  if (result === false) {
+    await expect(fullPath).not.toExist();
   } else {
-    expect(() => content).rejects.toThrow(result.err);
+    await expect(fullPath).toHaveContent(result);
   }
 }
 
@@ -140,7 +135,7 @@ describe('fused', () => {
       it('Appends to actual files in the source & mnt tree', () =>
          check('/file', 'data', { mnt: 'filedata', src: 'filedata' }));
       it('Appends virtual files, without altering the source tree ', () =>
-         check('/foo/bar', 'data', { mnt: 'contentdata', src: { err: 'ENOENT' }}));
+         check('/foo/bar', 'data', { mnt: 'contentdata', src: false}));
     }
 
 
@@ -231,8 +226,8 @@ describe('fused', () => {
 
       it('fully truncates real files', () => check('/file', 0, { src: "", mnt: "" }));
       it('partially truncates real files', () => check('/file', 2, { src: "fi", mnt: "fi" }));
-      it('fully truncates virtual files', () => check('/foo/bar', 0, { src: { err: "ENOENT" }, mnt: "" }));
-      it('partially truncates virtual files', () => check('/foo/bar', 2, { src: { err: "ENOENT" }, mnt: "co" }));
+      it('fully truncates virtual files', () => check('/foo/bar', 0, { src: false, mnt: "" }));
+      it('partially truncates virtual files', () => check('/foo/bar', 2, { src: false, mnt: "co" }));
     }
   });
   describe("utimes", () => {
@@ -268,7 +263,7 @@ describe('fused', () => {
       it("Renames the files", async () => {
         await fs.rename(mnt("/file"), mnt("/newfile"));
         await checkContents("/newfile", { src: "file", mnt: "file" });
-        await checkContents("/file", { src: { err: "ENOENT" }, mnt: { err: "ENOENT" } });
+        await checkContents("/file", { src: false, mnt: false });
       });
     });
     describe("virtual -> real", () => {
