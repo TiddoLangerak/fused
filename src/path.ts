@@ -17,6 +17,7 @@ export type ResolverOpts = {
   mountPath: string;
 }
 
+// TODO: rename
 export type Resolver = (pathSegment: string) => string;
 
 export const resolver = ({ sourcePath, mountPath } : ResolverOpts): Resolver => (pathSegment: string) => {

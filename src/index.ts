@@ -10,10 +10,10 @@ const handler: VirtualFileHandler = {
     }
     return 'other_with_fallback';
   },
-  listFiles(folder) {
+  listFiles(_folder) {
     return ['phantom.virt'];
   },
-  readFile(path) {
+  readFile(_path) {
     return 'Phantom data';
   },
   writeFile(_path, _content) {

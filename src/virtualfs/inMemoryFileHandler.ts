@@ -1,5 +1,5 @@
 import { basename, dirname, relative, sep } from 'path';
-import { assert, todo } from '../assert.js';
+import { assert } from '../assert.js';
 import { FileContent, MiniStat, VirtualFileHandler } from "./virtualFile.js";
 import { Awaitable } from '../awaitable.js';
 import { FileNotFoundError } from '../error.js';

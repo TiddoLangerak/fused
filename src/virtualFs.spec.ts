@@ -1,4 +1,4 @@
-import { VirtualFs, InMemoryFileHandler } from "./virtualfs/index.js";
+//import { VirtualFs, InMemoryFileHandler } from "./virtualfs/index.js";
 
 describe('virtualFs', () => {
   describe.skip('readdir', () => {

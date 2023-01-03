@@ -1,7 +1,7 @@
 import { Dir } from 'node:fs';
 import { open, opendir, FileHandle, lstat, constants, readdir, truncate, chown, readlink, chmod, writeFile, utimes, unlink, rename, symlink, link, mkdir, rmdir } from 'node:fs/promises';
 import { debug } from './debug.js';
-import { FusedFs, Stat, Fd, Handles } from './handlers.js';
+import { FusedFs, Fd, Handles } from './handlers.js';
 import { ProgramOpts } from './opts.js';
 import { resolver, Resolver } from './path.js';
 
@@ -26,7 +26,7 @@ export class RealFs implements FusedFs {
       return await this.getattr(path);
     }
   }
-  flush = (path: string, fd: Fd) => {
+  flush = (_path: string, _fd: Fd) => {
       // We need to flush uncommitted data to the OS here (not necessarily disk)
       // Since we don't keep things in memory, we have nothing to do here
   }
@@ -68,7 +68,7 @@ export class RealFs implements FusedFs {
     this.#openFiles.set(handle.fd, handle);
     return handle.fd;
   }
-  opendir = async(path: string, flags: number) => {
+  opendir = async(path: string, _flags: number) => {
     const handle = await opendir(this.getAbsolutePath(path));
     const fd = this.#dirFdCount++;
     this.#openDirs.set(fd, handle);

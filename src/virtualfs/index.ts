@@ -178,7 +178,7 @@ export class VirtualFs implements FusedFs {
     // TODO: test
     await this.#handler.writeFile(path, Buffer.alloc(0));
   };
-  open = async (path: string, mode: number) => {
+  open = async (path: string, _mode: number) => {
     // No need to check mode, already done by kernel (due to "default_permissions")
     const content = await this.#handler.readFile(path);
     const buff: Buffer = typeof content === 'string'

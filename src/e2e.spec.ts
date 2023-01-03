@@ -106,13 +106,13 @@ describe('fused', () => {
 
   describe("readdir", () => {
     describe('fs.readdir', () => test(fs.readdir));
-    describe('ls', () => test(async (path) => (await run(`ls ${path}`))[0].split(' ')));
+    describe('ls', () => test(async (path) => (await run(`ls ${path}`))[0].trim().split(/\s+/)));
 
     type ReaddirFn = (path: string) => Promise<string[]>;
     function test(readdirFn: ReaddirFn) {
       async function check(folder: string, expectedContent: string[]) {
         const path = mnt(folder);
-        const content = await fs.readdir(path);
+        const content = await readdirFn(path);
         expect(content.sort()).toEqual(expectedContent.sort());
       }
       it('shows the correct folder content at root', () =>
@@ -225,7 +225,7 @@ describe('fused', () => {
   });
 
   describe('truncate', () => {
-    describe.only('sh -c truncate', () => test((path, len) => run(`truncate -s ${len} ${path}`)));
+    describe('sh -c truncate', () => test((path, len) => run(`truncate -s ${len} ${path}`)));
     describe('truncate', () => test(fs.truncate));
     describe('file.truncate', () => test((path, len) => withFile(path, file => file.truncate(len))));
 

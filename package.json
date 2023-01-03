@@ -9,7 +9,8 @@
   "license": "ISC",
   "scripts": {
     "start": "ts-node-esm src/index.ts",
-    "test": "jest"
+    "test": "jest",
+    "check": "tsc --noEmit -p ./tsconfig.strict.json"
   },
   "dependencies": {
     "fuse-native": "^2.2.6"
