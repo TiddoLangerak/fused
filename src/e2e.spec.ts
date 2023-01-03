@@ -89,6 +89,11 @@ describe('fused', () => {
          check('/file', 'data', { mnt: 'filedata', src: 'filedata' }));
       it('Appends virtual files, without altering the source tree ', () =>
          check('/foo/bar', 'data', { mnt: 'contentdata', src: false}));
+      it('Cannot append to readonly files', () => {
+        expect(() => appendFn(mnt('/foo/baz'), 'data'))
+          .rejects
+          .toThrow(/(EACCES)|(Permission denied)/);
+      });
     }
 
 
