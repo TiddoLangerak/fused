@@ -8,7 +8,7 @@ import { unreachable } from '../assert.js';
 import { Awaitable } from '../awaitable.js';
 import { IOError } from '../error.js';
 import { FdMapper } from '../fd.js';
-import { FusedHandlers } from '../handlers.js';
+import { FusedFs } from '../handlers.js';
 import { resolver, Resolver } from '../path.js';
 import { VirtualFileHandler } from './virtualFile.js';
 
@@ -73,7 +73,7 @@ type DirFd = {
 
 type InternalFd = FileFd | DirFd;
 
-export class VirtualFs implements FusedHandlers {
+export class VirtualFs implements FusedFs {
   #handler: VirtualFileHandler;
   #rootGid: number;
   #rootUid: number;

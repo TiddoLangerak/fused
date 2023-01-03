@@ -4,8 +4,6 @@ import Fuse, { CB, Handlers, Stat } from "fuse-native";
 import { debug } from "./debug.js";
 import { Awaitable } from "./awaitable.js";
 import { FdMapper } from "./fd.js";
-import { VirtualFs } from "./virtualfs/index.js";
-import { RealFs } from "./realFs.js";
 import { dirname } from "path";
 export { Stat };
 export type Fd = number;
@@ -18,24 +16,22 @@ function isEnoent(e: unknown): boolean {
   return typeof e === 'object' && !!e && (e as any).errno === Fuse.ENOENT;
 }
 
-async function realWithFallback<A extends any[], R>(real: AwaitableFunc<A, R>, virtual: AwaitableFunc<A, R>, args: A): Promise<R> {
+async function baseWithFallback<A extends any[], R>(base: AwaitableFunc<A, R>, overlay: AwaitableFunc<A, R>, args: A): Promise<R> {
   try {
-    return await real(...args);
+    return await base(...args);
   } catch (e) {
     if (isEnoent(e)) {
-      return await virtual(...args);
+      return await overlay(...args);
     }
     throw e;
   }
 }
 
-// TODO: make this accept many virtual fs
-export const makeHandlers = (realFs: FusedHandlers, virtualFs: FusedHandlers): Partial<Handlers> => {
-  //return mapHandlers(virtualFs);
-  const fdMapper = new FdMapper<[FusedHandlers, Fd]>();
+export const makeHandlers = (baseFs: FusedFs, overlayFs: FusedFs): Partial<Handlers> => {
+  const fdMapper = new FdMapper<[FusedFs, Fd]>();
 
   function init(): (() => Promise<void>) {
-    return async () => { await Promise.all([ realFs.init(), virtualFs.init() ]); }
+    return async () => { await Promise.all([ baseFs.init(), overlayFs.init() ]); }
   }
 
   function readdir(): Readdir {
@@ -50,17 +46,17 @@ export const makeHandlers = (realFs: FusedHandlers, virtualFs: FusedHandlers): P
       }
     }
     return async (path: string): Promise<string[]> => {
-      switch (await virtualFs.handles(path)) {
+      switch (await overlayFs.handles(path)) {
         case 'self':
-          return await virtualFs.readdir(path);
+          return await overlayFs.readdir(path);
         case 'other':
-          return await realFs.readdir(path);
+          return await baseFs.readdir(path);
         case 'other_with_fallback':
           // We want to ignore at most 1 enoent.
           // If both enoent, then we abort
-          const vRes = virtualFs.readdir(path);
+          const vRes = overlayFs.readdir(path);
           try {
-            const rRes = await realFs.readdir(path);
+            const rRes = await baseFs.readdir(path);
             return [...rRes, ...(await ignoreEnoent(vRes))];
           } catch (e) {
             return await vRes;
@@ -69,22 +65,22 @@ export const makeHandlers = (realFs: FusedHandlers, virtualFs: FusedHandlers): P
     }
   }
   // TODO: clean up
-  function virtualFirst<A extends [string, ...any[]], R>(real: AwaitableFunc<A, R>, virtual: AwaitableFunc<A, R>): AwaitableFunc<A, R> {
+  function overlayFirst<A extends [string, ...any[]], R>(baseFn: AwaitableFunc<A, R>, overlayFn: AwaitableFunc<A, R>): AwaitableFunc<A, R> {
     return (async(...args) => {
       const path: string = args[0];
-      switch (await virtualFs.handles(path)) {
+      switch (await overlayFs.handles(path)) {
         case 'self':
-          return await virtual(...args);
+          return await overlayFn(...args);
         case 'other':
-          return await real(...args);
+          return await baseFn(...args);
         case 'other_with_fallback':
-          return await realWithFallback(real, virtual, args);
+          return await baseWithFallback(baseFn, overlayFn, args);
       }
     });
   }
 
-  function fromFd<A extends [string, number, ...any[]], R>(real: AwaitableFunc<A, R>, virtual: AwaitableFunc<A, R>): AwaitableFunc<A, R> {
-    const delegate = virtualFirst(real, virtual);
+  function fromFd<A extends [string, number, ...any[]], R>(baseFn: AwaitableFunc<A, R>, overlayFn: AwaitableFunc<A, R>): AwaitableFunc<A, R> {
+    const delegate = overlayFirst(baseFn, overlayFn);
     return ((...args) => {
       const [path, fd, ...rest] = args;
       const downstream = fdMapper.get(fd);
@@ -92,10 +88,10 @@ export const makeHandlers = (realFs: FusedHandlers, virtualFs: FusedHandlers): P
         const [handler, mappedFd] = downstream;
         // TODO: not the nicest... perhaps we could improve?
         const mappedArgs: A = [path, mappedFd, ...rest] as A;
-        if (handler === realFs) {
-          return real(...mappedArgs);
+        if (handler === baseFs) {
+          return baseFn(...mappedArgs);
         } else {
-          return virtual(...mappedArgs);
+          return overlayFn(...mappedArgs);
         }
       } else {
         return delegate(...args);
@@ -104,87 +100,87 @@ export const makeHandlers = (realFs: FusedHandlers, virtualFs: FusedHandlers): P
   }
 
   type LinkFunc = (target: string, path: string) => Awaitable<void>;
-  function linkVirtualFirst(real: LinkFunc, virtual: LinkFunc): LinkFunc {
+  function linkOverlayFirst(baseFn: LinkFunc, overlayFn: LinkFunc): LinkFunc {
     return async (target, path) => {
-      switch (await virtualFs.handles(path)) {
+      switch (await overlayFs.handles(path)) {
         case 'self':
-          return virtual(target, path);
+          return overlayFn(target, path);
         case 'other':
-          return real(target, path);
+          return baseFn(target, path);
         case 'other_with_fallback':
-          return realWithFallback(real, virtual, [target, path]);
+          return baseWithFallback(baseFn, overlayFn, [target, path]);
       }
     }
   }
 
-  const mappers: { [K in keyof FusedHandlers]: ((r: FusedHandlers[K], v: FusedHandlers[K]) => FusedHandlers[K]) } = {
+  const mappers: { [K in keyof FusedFs]: ((baseFn: FusedFs[K], overlayFn: FusedFs[K]) => FusedFs[K]) } = {
     init: init,
     readdir: readdir,
-    getattr: virtualFirst,
+    getattr: overlayFirst,
     fgetattr: fromFd,
     flush: fromFd,
     fsync: fromFd,
-    chown: virtualFirst,
-    chmod: virtualFirst,
-    mknod: virtualFirst,
-    open: virtualFirst,
-    opendir: virtualFirst,
+    chown: overlayFirst,
+    chmod: overlayFirst,
+    mknod: overlayFirst,
+    open: overlayFirst,
+    opendir: overlayFirst,
     read: fromFd,
     write: fromFd,
     release: fromFd,
     releasedir: fromFd,
-    utimens: virtualFirst,
-    unlink: virtualFirst,
-    rename: (real, virtual) => async (from: string, to: string) => {
-      const fromHandles = await virtualFs.handles(from);
-      const toHandles = await virtualFs.handles(to);
+    utimens: overlayFirst,
+    unlink: overlayFirst,
+    rename: (baseRename, overlayRename) => async (from: string, to: string) => {
+      const fromHandles = await overlayFs.handles(from);
+      const toHandles = await overlayFs.handles(to);
       if (fromHandles === 'self' || toHandles === 'self') {
-        return await virtual(from, to);
+        return await overlayRename(from, to);
       }
       if (fromHandles === 'other_with_fallback' || toHandles === 'other_with_fallback') {
-        return await realWithFallback(real, virtual, [from, to]);
+        return await baseWithFallback(baseRename, overlayRename, [from, to]);
       }
-      return await real(from, to);
+      return await baseRename(from, to);
     },
-    mkdir: (real, virtual) => async (path: string, mode: number) => {
+    mkdir: (baseMkdir, overlayMkdir) => async (path: string, mode: number) => {
       // TODO: refactor this into something nice?
       const parent = dirname(path);
-      switch (await virtualFs.handles(parent)) {
+      switch (await overlayFs.handles(parent)) {
         case 'self':
-          return await virtual(path, mode);
+          return await overlayMkdir(path, mode);
         case 'other':
-          return await real(path, mode);
+          return await baseMkdir(path, mode);
         case 'other_with_fallback':
-          return await realWithFallback(real, virtual, [path, mode]);
+          return await baseWithFallback(baseMkdir, overlayMkdir, [path, mode]);
       }
     },
-    rmdir: virtualFirst,
-    truncate: virtualFirst,
+    rmdir: overlayFirst,
+    truncate: overlayFirst,
     ftruncate: fromFd,
-    readlink: virtualFirst,
-    symlink: linkVirtualFirst,
-    link: linkVirtualFirst,
-    handles: (real, virtual) => async (path:string) => {
-      switch (await virtual(path)) {
+    readlink: overlayFirst,
+    symlink: linkOverlayFirst,
+    link: linkOverlayFirst,
+    handles: (baseHandles, overlayHandles) => async (path:string) => {
+      switch (await overlayHandles(path)) {
         case 'self':
           return 'self';
         case 'other':
-          return await real(path);
+          return await baseHandles(path);
         case 'other_with_fallback':
-          const realHandles = await real(path);
-          if (realHandles === 'other') {
+          const base = await baseHandles(path);
+          if (base === 'other') {
             return 'other_with_fallback';
           }
-          return realHandles;
+          return base;
       }
     }
   };
 
-  const combinedFs: FusedHandlers = Object.fromEntries(
+  const combinedFs: FusedFs = Object.fromEntries(
     Object.entries(mappers)
       // TODO: better typing
-      .map(([ key, val ]) => [key, val((realFs as any)[key], (virtualFs as any)[key])])
-  ) as FusedHandlers;
+      .map(([ key, val ]) => [key, val((baseFs as any)[key], (overlayFs as any)[key])])
+  ) as FusedFs;
 
   return mapHandlers(combinedFs);
 };
@@ -219,7 +215,7 @@ const standardHandlers: StandardHandlers[] = [
     'rmdir',
 ];
 
-function mapHandlers(f: FusedHandlers): Partial<Handlers> {
+function mapHandlers(f: FusedFs): Partial<Handlers> {
   const handlers: Partial<Handlers> = {};
 
   standardHandlers.forEach(method => fusedHandlerToNativeHandler(handlers, f, method));
@@ -257,7 +253,7 @@ function mapHandlers(f: FusedHandlers): Partial<Handlers> {
   return handlers;
 }
 
-function fusedHandlerToNativeHandler<K extends keyof Handlers & keyof FusedHandlers>(h: Partial<Handlers>, f: FusedHandlers, k: K) {
+function fusedHandlerToNativeHandler<K extends keyof Handlers & keyof FusedFs>(h: Partial<Handlers>, f: FusedFs, k: K) {
   const fusedHandler = f[k];
   if (fusedHandler) {
     // Sorry, can't type it, need to do some funky stuff.
@@ -306,7 +302,7 @@ type ToAwaitable<F> = F extends (cb: CB<infer R>) => void
 
 
 export type Handles = 'self' | 'other' | 'other_with_fallback';
-export type FusedHandlers = {
+export type FusedFs = {
   [k in StandardHandlers]: ToAwaitable<Handlers[k]>;
 } & {
   write(path: string, fd: number, buffer: Buffer, length: number, position: number): Awaitable<number>;

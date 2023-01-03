@@ -1,11 +1,11 @@
 import { Dir } from 'node:fs';
 import { open, opendir, FileHandle, lstat, constants, readdir, truncate, chown, readlink, chmod, writeFile, utimes, unlink, rename, symlink, link, mkdir, rmdir } from 'node:fs/promises';
 import { debug } from './debug.js';
-import { FusedHandlers, Stat, Fd, Handles } from './handlers.js';
+import { FusedFs, Stat, Fd, Handles } from './handlers.js';
 import { ProgramOpts } from './opts.js';
 import { resolver, Resolver } from './path.js';
 
-export class RealFs implements FusedHandlers {
+export class RealFs implements FusedFs {
   getAbsolutePath: Resolver;
   #openFiles: Map<Fd, FileHandle> = new Map();
   #openDirs: Map<Fd, Dir> = new Map();
