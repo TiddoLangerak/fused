@@ -161,13 +161,8 @@ export class VirtualFs implements FusedFs {
   ftruncate = async (path: string, fd: number, size: number) : Promise<void> => {
     const file = this.#getFile(fd);
     file.size = Math.min(file.size, size);
-    // TODO: I don't understand why/if this is needed.
-    // There's something weird on linux.
-    // Linux seems to cache stats internally, and certain file operations seems to invalidate this cache.
-    // Odly, it seems that after a call to ftruncate, we get a stat before a flush
-    // meaning, this stat still uses outdated data.
-    // Either we'll need to flush after write, or after truncate.
-    // For now, we'll flush after truncate, when internet we can investigate online
+    // It seems that we're required to flush our changes straight away.
+    // Without this, things don't work.
     await this.flush(path, fd);
   };
   readlink = () : Awaitable<string> => {
@@ -184,9 +179,7 @@ export class VirtualFs implements FusedFs {
     await this.#handler.writeFile(path, Buffer.alloc(0));
   };
   open = async (path: string, mode: number) => {
-    // TODO: how to deal with concurrent r/w access?
-    // TODO: respect mode
-    // TODO: do we need to respect blocking IO
+    // No need to check mode, already done by kernel (due to "default_permissions")
     const content = await this.#handler.readFile(path);
     const buff: Buffer = typeof content === 'string'
       ? Buffer.from(content)

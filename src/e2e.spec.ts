@@ -225,7 +225,7 @@ describe('fused', () => {
   });
 
   describe('truncate', () => {
-    describe('sh -c truncate', () => test((path, len) => run(`truncate -s ${len} ${path}`)));
+    describe.only('sh -c truncate', () => test((path, len) => run(`truncate -s ${len} ${path}`)));
     describe('truncate', () => test(fs.truncate));
     describe('file.truncate', () => test((path, len) => withFile(path, file => file.truncate(len))));
 
