@@ -6,11 +6,12 @@ import * as fs from 'node:fs/promises';
 import rimraf from 'rimraf';
 import { Stats } from 'node:fs';
 import { S_IFREG, S_IRGRP, S_IROTH, S_IRUSR, S_IWGRP, S_IWUSR } from 'node:constants';
-import { FileHandle } from 'node:fs/promises';
 import { Awaitable } from './awaitable.js';
 import { pick } from './util.js';
 import * as childProcess from 'node:child_process';
 import { debug } from './debug.js';
+import { withFile } from './file.js';
+import './matchers/file.js';
 
 const sourceRoot = resolve(__dirname, '../test/src')
 const mountRoot = resolve(__dirname, '../test/mnt');
@@ -29,18 +30,6 @@ async function setupFileSystem(): Promise<FusedHandle> {
   ];
   await createFileTree(sourceRoot);
   return await main(opts, files);
-}
-
-// TODO: Something properly crashes when we open a file but not close it.
-// Can we test this?
-
-async function withFile<T>(path: string, cb: ((file: FileHandle)=> Awaitable<T>)): Promise<T> {
-  const file = await fs.open(path, 'r+');
-  try {
-    return await cb(file);
-  } finally {
-    await file.close();
-  }
 }
 
 function paths(path: string) {
@@ -62,6 +51,10 @@ type ReadResult = string | { err: string };
 type DualReadResult = { src: ReadResult, mnt: ReadResult };
 
 async function checkContent(fullPath: string, result: ReadResult) {
+  if (typeof result === 'string') {
+    await expect(fullPath).toHaveContent(result);
+    return;
+  }
   const content = fs.readFile(fullPath, 'utf8');
   if (typeof result === 'string') {
     expect(await content).toEqual(result);
