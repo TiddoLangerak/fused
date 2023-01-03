@@ -17,9 +17,9 @@ export class InMemoryFileHandler implements VirtualFileHandler {
   content: FileContent;
   #writeable: boolean;
 
-  constructor(path: string, content: FileContent, opts: FileOpts = {}) {
+  constructor(path: string, initialContent: FileContent, opts: FileOpts = {}) {
     this.#path = path;
-    this.content = content;
+    this.content = initialContent;
     this.#folder = dirname(path);
     this.#file = basename(path);
     this.#modificationTime = new Date();
