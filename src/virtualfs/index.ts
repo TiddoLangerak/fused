@@ -8,7 +8,7 @@ import { unreachable } from '../assert.js';
 import { Awaitable } from '../awaitable.js';
 import { IOError } from '../error.js';
 import { FdMapper } from '../fd.js';
-import { FusedFs } from '../handlers.js';
+import { FusedFs } from '../fusedFs.js';
 import { srcPathResolver, SrcPathResolver } from '../path.js';
 import { VirtualFileHandler } from './virtualFile.js';
 

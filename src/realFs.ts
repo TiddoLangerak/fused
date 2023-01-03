@@ -3,7 +3,7 @@ import { Dir } from 'node:fs';
 import { open, opendir, FileHandle, lstat, constants, readdir, truncate, chown, readlink, chmod, writeFile, utimes, unlink, rename, symlink, link, mkdir, rmdir } from 'node:fs/promises';
 import { debug } from './debug.js';
 import { IOError, isEnoent } from './error.js';
-import { FusedFs, Fd, Handles } from './handlers.js';
+import { FusedFs, Handles, Fd } from './fusedFs.js';
 import { ProgramOpts } from './opts.js';
 import { srcPathResolver, SrcPathResolver } from './path.js';
 
