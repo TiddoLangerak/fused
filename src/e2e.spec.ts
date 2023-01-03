@@ -3,15 +3,15 @@ import { FusedHandle, main } from './lib.js';
 import { ProgramOpts } from './opts.js';
 import { InMemoryFileHandler } from './virtualfs/inMemoryFileHandler.js';
 import * as fs from 'node:fs/promises';
-import rimraf from 'rimraf';
 import { Stats } from 'node:fs';
 import { S_IFREG, S_IRGRP, S_IROTH, S_IRUSR, S_IWGRP, S_IWUSR } from 'node:constants';
 import { Awaitable } from './awaitable.js';
 import { pick } from './util.js';
 import * as childProcess from 'node:child_process';
 import { debug } from './debug.js';
-import { withFile } from './file.js';
+import { rmrf, withFile } from './file.js';
 import './matchers/file.js';
+import { testFs } from './test/fs.js';
 
 const sourceRoot = resolve(__dirname, '../test/src')
 const mountRoot = resolve(__dirname, '../test/mnt');
@@ -24,28 +24,12 @@ const sourceFiles = {
 
 // TODO: organize all the helpers
 
-async function setupFileSystem(): Promise<FusedHandle> {
-  const files = [
+const { mnt, src, paths, init, cleanup } = testFs(
+  opts,
+  sourceFiles,
+  () => [
     new InMemoryFileHandler('/foo/bar', 'content')
-  ];
-  await createFileTree(sourceRoot);
-  return await main(opts, files);
-}
-
-function paths(path: string) {
-  return {
-    srcPath: src(path),
-    mntPath: mnt(path)
-  };
-}
-
-function mnt(path: string) {
-  return join(mountRoot, path);
-}
-
-function src(path: string) {
-  return join(sourceRoot, path);
-}
+  ]);
 
 type ReadResult = string | false;
 type DualReadResult = { src: ReadResult, mnt: ReadResult };
@@ -64,32 +48,10 @@ async function checkContents(path: string, results: DualReadResult) {
   await checkContent(srcPath, results.src);
 }
 
-async function rmrf(path: string) {
-  await new Promise((resolve, reject) => rimraf(path, err => err ? reject(err) : resolve(undefined)));
-}
-
-async function createFileTree(sourcePath: string) {
-  await rmrf(sourcePath);
-  await fs.mkdir(sourcePath, { recursive: true });
-
-  for (let [path, content] of Object.entries(sourceFiles)) {
-    const dir = dirname(path);
-    if (dir) {
-      await fs.mkdir(resolve(sourcePath, dir), { recursive: true });
-    }
-    await fs.writeFile(resolve(sourcePath, path), content);
-  }
-}
-
-async function cleanup(handle: FusedHandle) {
-  await handle.unmount();
-  await rmrf(sourceRoot);
-}
-
 describe('fused', () => {
   let fusedHandle: FusedHandle;
 
-  beforeEach(async () => fusedHandle = await setupFileSystem());
+  beforeEach(async () => fusedHandle = await init());
   afterEach(() => cleanup(fusedHandle));
 
   describe("readdir", () => {
