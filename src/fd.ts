@@ -1,7 +1,7 @@
 /// For whatever reason the reference is needed for the language-server
 /// <reference path="../types/fuse-native.d.ts" />
 import Fuse from "fuse-native";
-import { Fd } from "./fusedFs";
+import { Fd } from "./fusedFs.js";
 
 const MAX_FD = Math.pow(2, 31) - 1;
 const MAX_FD_ATTEMPTS = 1024;

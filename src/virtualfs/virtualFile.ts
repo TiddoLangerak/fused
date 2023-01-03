@@ -1,6 +1,6 @@
 import { Stat } from "fuse-native";
 import { Awaitable } from "../awaitable.js";
-import { Handles } from "../handlers.js";
+import { Handles } from "../fusedFs.js";
 
 export type FileContent = string | Buffer;
 export { Stat };

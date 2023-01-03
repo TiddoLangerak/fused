@@ -3,7 +3,6 @@ import { ProgramOpts } from './opts.js';
 import { makeHandlers } from './handlers.js';
 import { VirtualFileHandler, VirtualFs } from './virtualfs/index.js';
 import { RealFs } from './realFs.js';
-import { assert } from './assert.js';
 import { stat } from 'fs/promises';
 
 async function validateOpts({ sourcePath, mountPath }: ProgramOpts) {

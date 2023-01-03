@@ -3,8 +3,8 @@ import { Awaitable } from './awaitable.js';
 import { isEnoent } from './error.js';
 import rimraf from 'rimraf';
 
-export async function withFile<T>(path: string, cb: ((file: FileHandle)=> Awaitable<T>)): Promise<T> {
-  const file = await open(path, 'r+');
+export async function withFile<T>(path: string, mode: string, cb: ((file: FileHandle)=> Awaitable<T>)): Promise<T> {
+  const file = await open(path, mode);
   try {
     return await cb(file);
   } finally {

@@ -1,10 +1,10 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
-import { rmrf } from "../file";
-import { FusedHandle, main } from "../lib";
-import { ProgramOpts } from "../opts";
-import { VirtualFileHandler } from "../virtualfs";
-import { checkContent, ReadResult } from "./file";
+import { rmrf } from "../file.js";
+import { FusedHandle, main } from "../lib.js";
+import { ProgramOpts } from "../opts.js";
+import { VirtualFileHandler } from "../virtualfs/index.js";
+import { checkContent, ReadResult } from "./file.js";
 
 export type FileTree = {
   [k in string]: string

@@ -24,7 +24,7 @@ const sourceFiles = {
 
 const virtualFiles = () => [
     new InMemoryFileHandler('/foo/bar', 'content'),
-    new InMemoryFileHandler('/foo/baz', 'also content')
+    new InMemoryFileHandler('/foo/baz', 'readonly content', { readonly: true })
 ];
 
 const { mnt, src, paths, init, cleanup, checkContents } = testFs(
@@ -62,10 +62,16 @@ describe('fused', () => {
   describe('access', () => {
     const checkRw = (file: string) =>
       fs.access(mnt(file), fs.constants.R_OK | fs.constants.W_OK);
+    const checkR = async (file: string) => {
+      await fs.access(mnt(file), fs.constants.R_OK);
+      await expect(() => fs.access(mnt(file), fs.constants.W_OK))
+        .rejects
+        .toThrow("EACCES");
+    }
 
     it('tests actual permissions for real files', () => checkRw('/file'));
     it('tests permissions for virtual files', () => checkRw('/foo/bar'));
-    // TODO: test for read only
+    it('tests permissions for readonly virtual files', () => checkR('/foo/baz'));
   });
 
   describe('appendFile', () => {
@@ -99,7 +105,7 @@ describe('fused', () => {
     });
 
     describe('fs.lstat', () => test(fs.stat));
-    describe('file.stat', () => test(path => withFile(path, file => file.stat())));
+    describe('file.stat', () => test(path => withFile(path, 'r', file => file.stat())));
 
     type StatFn = (file: string) => Promise<Stats>;
     function test(statFn: StatFn) {
@@ -125,7 +131,13 @@ describe('fused', () => {
         uid,
         mode: S_IWUSR | S_IWGRP | S_IRUSR | S_IRGRP | S_IROTH | S_IFREG
       }));
-      // TODO: readonly
+      it('Stats virtual readonly files', () => check('/foo/baz', {
+        // Other props are hard to test, so we'll leave it at these for now
+        size: "readonly content".length,
+        gid,
+        uid,
+        mode: S_IRUSR | S_IRGRP | S_IROTH | S_IFREG
+      }));
     }
 
   });
@@ -161,7 +173,7 @@ describe('fused', () => {
   describe('truncate', () => {
     describe('sh -c truncate', () => test((path, len) => run(`truncate -s ${len} ${path}`)));
     describe('truncate', () => test(fs.truncate));
-    describe('file.truncate', () => test((path, len) => withFile(path, file => file.truncate(len))));
+    describe('file.truncate', () => test((path, len) => withFile(path, 'r+', file => file.truncate(len))));
 
     type TruncateFn = (path: string, len: number) => Awaitable<unknown>;
     function test(truncateFn: TruncateFn) {

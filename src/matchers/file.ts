@@ -1,6 +1,6 @@
 import { readFile } from "fs/promises";
 import { diff } from 'jest-diff';
-import { exists } from "../file";
+import { exists } from "../file.js";
 
 async function toHaveContent(
   this: jest.MatcherContext,

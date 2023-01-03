@@ -1,21 +1,29 @@
 import { basename, dirname, relative, sep } from 'path';
 import { assert } from '../assert.js';
 import { FileContent, MiniStat, VirtualFileHandler } from "./virtualFile.js";
-import { FileNotFoundError } from '../error.js';
+import { FileNotFoundError, IOError } from '../error.js';
+import Fuse from 'fuse-native';
 
+
+export type Readonly = 'readonly';
+export type FileOpts = {
+  readonly?: boolean
+};
 export class InMemoryFileHandler implements VirtualFileHandler {
   #path: string;
   #folder: string;
   #file: string;
   #modificationTime: Date;
   content: FileContent;
+  #writeable: boolean;
 
-  constructor(path: string, content: FileContent) {
+  constructor(path: string, content: FileContent, opts: FileOpts = {}) {
     this.#path = path;
     this.content = content;
     this.#folder = dirname(path);
     this.#file = basename(path);
     this.#modificationTime = new Date();
+    this.#writeable = !opts.readonly;
   }
   #isAncestor(path: string): boolean {
     return relative(path, this.#path)[0] !== '.';
@@ -43,6 +51,7 @@ export class InMemoryFileHandler implements VirtualFileHandler {
   }
   writeFile(path: string, content: FileContent): void {
     assert(path === this.#path, new FileNotFoundError(path));
+    assert(this.#writeable, new IOError(Fuse.EACCES, "File is readonly"));
     this.content = content;
     this.#modificationTime = new Date();
   }
@@ -50,7 +59,7 @@ export class InMemoryFileHandler implements VirtualFileHandler {
     if (path === this.#path) {
       return {
         type: 'file',
-        writeable: true,
+        writeable: this.#writeable,
         modificationTime: this.#modificationTime,
         size: this.content.length,
         executable: false
