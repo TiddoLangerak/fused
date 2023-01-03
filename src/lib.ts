@@ -31,7 +31,7 @@ export async function main(opts: ProgramOpts, files: VirtualFileHandler[]): Prom
 
   const virtualFs = new VirtualFs(files[0], opts, gid, uid);
 
-  const handlers = makeHandlers(new RealFs(opts), virtualFs);
+  const handlers = makeHandlers(new RealFs(opts), [virtualFs]);
 
   const fuse = new Fuse(
     opts.mountPath,

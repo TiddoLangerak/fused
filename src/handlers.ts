@@ -5,12 +5,17 @@ import { debug } from "./debug.js";
 import { Awaitable } from "./awaitable.js";
 import { FdMapper } from "./fd.js";
 import { Fd, FusedFs, fuseLayers, StandardHandlers } from "./fusedFs.js";
+import { VirtualFs } from "./virtualfs/index.js";
+import { RealFs } from "./realFs.js";
 export { Stat };
 
-export const makeHandlers = (baseFs: FusedFs, overlayFs: FusedFs): Partial<Handlers> => {
+export const makeHandlers = (realFs: RealFs, overlays: VirtualFs[]): Partial<Handlers> => {
   const fdMapper = new FdMapper<[FusedFs, Fd]>();
 
-  return mapHandlers(fuseLayers(baseFs, overlayFs, fdMapper));
+  const fused = overlays
+    .reduce((base: FusedFs, overlay) => fuseLayers(base, overlay, fdMapper), realFs);
+
+  return mapHandlers(fused);
 };
 
 const standardHandlers: StandardHandlers[] = [
