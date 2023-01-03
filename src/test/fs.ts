@@ -4,6 +4,7 @@ import { rmrf } from "../file";
 import { FusedHandle, main } from "../lib";
 import { ProgramOpts } from "../opts";
 import { VirtualFileHandler } from "../virtualfs";
+import { checkContent, ReadResult } from "./file";
 
 export type FileTree = {
   [k in string]: string
@@ -17,7 +18,10 @@ export type TestFs = {
   paths: (p: string) => { srcPath: string, mntPath: string },
   init: () => Promise<FusedHandle>,
   cleanup: (handle: FusedHandle) => Promise<void>
+  checkContents: (path: string, expected: DualReadResult) => Promise<void>;
 }
+
+export type DualReadResult = { src: ReadResult, mnt: ReadResult };
 
 export function testFs(opts: ProgramOpts, realFiles: FileTree, virtualFiles: VirtualFiles): TestFs {
   const { mountPath, sourcePath } = opts;
@@ -36,12 +40,19 @@ export function testFs(opts: ProgramOpts, realFiles: FileTree, virtualFiles: Vir
     await rmrf(sourcePath);
   };
 
+  const checkContents = async(path: string, results: DualReadResult) => {
+    const { mntPath, srcPath } = paths(path);
+    await checkContent(mntPath, results.mnt);
+    await checkContent(srcPath, results.src);
+  }
+
   return {
     mnt,
     src,
     paths,
     init,
-    cleanup
+    cleanup,
+    checkContents
   };
 }
 

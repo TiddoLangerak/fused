@@ -1,6 +1,5 @@
-import { dirname, join, resolve } from 'path';
-import { FusedHandle, main } from './lib.js';
-import { ProgramOpts } from './opts.js';
+import { resolve } from 'path';
+import { FusedHandle } from './lib.js';
 import { InMemoryFileHandler } from './virtualfs/inMemoryFileHandler.js';
 import * as fs from 'node:fs/promises';
 import { Stats } from 'node:fs';
@@ -9,44 +8,29 @@ import { Awaitable } from './awaitable.js';
 import { pick } from './util.js';
 import * as childProcess from 'node:child_process';
 import { debug } from './debug.js';
-import { rmrf, withFile } from './file.js';
+import { withFile } from './file.js';
+import { DualReadResult, testFs } from './test/fs.js';
 import './matchers/file.js';
-import { testFs } from './test/fs.js';
 
-const sourceRoot = resolve(__dirname, '../test/src')
-const mountRoot = resolve(__dirname, '../test/mnt');
-const opts: ProgramOpts = { sourcePath: sourceRoot, mountPath: mountRoot };
+const opts = {
+  sourcePath: resolve(__dirname, '../test/src'),
+  mountPath: resolve(__dirname, '../test/mnt')
+};
 
 const sourceFiles = {
   'dir/foo': 'foo',
   'file': 'file',
 };
 
-// TODO: organize all the helpers
+const virtualFiles = () => [
+    new InMemoryFileHandler('/foo/bar', 'content')
+];
 
-const { mnt, src, paths, init, cleanup } = testFs(
+const { mnt, src, paths, init, cleanup, checkContents } = testFs(
   opts,
   sourceFiles,
-  () => [
-    new InMemoryFileHandler('/foo/bar', 'content')
-  ]);
-
-type ReadResult = string | false;
-type DualReadResult = { src: ReadResult, mnt: ReadResult };
-
-async function checkContent(fullPath: string, result: ReadResult) {
-  if (result === false) {
-    await expect(fullPath).not.toExist();
-  } else {
-    await expect(fullPath).toHaveContent(result);
-  }
-}
-
-async function checkContents(path: string, results: DualReadResult) {
-  const { mntPath, srcPath } = paths(path);
-  await checkContent(mntPath, results.mnt);
-  await checkContent(srcPath, results.src);
-}
+  virtualFiles
+);
 
 describe('fused', () => {
   let fusedHandle: FusedHandle;
@@ -108,7 +92,7 @@ describe('fused', () => {
     let uid: number;
 
     beforeAll(async() => {
-      const stat = await fs.lstat(mountRoot);
+      const stat = await fs.lstat(opts.mountPath);
       gid = stat.gid;
       uid = stat.uid;
     });
@@ -165,12 +149,11 @@ describe('fused', () => {
     it('creates & removes real folders through virtual folders', () => check('foo/foo'));
 
     it(`can't remove virtual folders`, async () => {
-      expect(() => fs.rmdir(`${mountRoot}/foo`))
+      expect(() => fs.rmdir(`${opts.mountPath}/foo`))
         .rejects
         .toThrow("EPERM");
 
-      // Just checking that it doesn't error
-      await fs.lstat(`${mountRoot}/foo`);
+      expect(`${opts.mountPath}/foo`).toExist();
     });
   });
 
