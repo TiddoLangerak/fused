@@ -29,7 +29,8 @@ async function realWithFallback<A extends any[], R>(real: AwaitableFunc<A, R>, v
   }
 }
 
-export const makeHandlers = (realFs: RealFs, virtualFs: VirtualFs): Partial<Handlers> => {
+// TODO: make this accept many virtual fs
+export const makeHandlers = (realFs: FusedHandlers, virtualFs: FusedHandlers): Partial<Handlers> => {
   //return mapHandlers(virtualFs);
   const fdMapper = new FdMapper<[FusedHandlers, Fd]>();
 
@@ -116,7 +117,7 @@ export const makeHandlers = (realFs: RealFs, virtualFs: VirtualFs): Partial<Hand
     }
   }
 
-  const mappers: { [K in keyof FusedHandlers]: ((r: RealFs[K], v: VirtualFs[K]) => FusedHandlers[K]) } = {
+  const mappers: { [K in keyof FusedHandlers]: ((r: FusedHandlers[K], v: FusedHandlers[K]) => FusedHandlers[K]) } = {
     init: init,
     readdir: readdir,
     getattr: virtualFirst,
@@ -163,6 +164,20 @@ export const makeHandlers = (realFs: RealFs, virtualFs: VirtualFs): Partial<Hand
     readlink: virtualFirst,
     symlink: linkVirtualFirst,
     link: linkVirtualFirst,
+    handles: (real, virtual) => async (path:string) => {
+      switch (await virtual(path)) {
+        case 'self':
+          return 'self';
+        case 'other':
+          return await real(path);
+        case 'other_with_fallback':
+          const realHandles = await real(path);
+          if (realHandles === 'other') {
+            return 'other_with_fallback';
+          }
+          return realHandles;
+      }
+    }
   };
 
   const combinedFs: FusedHandlers = Object.fromEntries(
@@ -242,7 +257,7 @@ function mapHandlers(f: FusedHandlers): Partial<Handlers> {
   return handlers;
 }
 
-function fusedHandlerToNativeHandler<K extends keyof FusedHandlers>(h: Partial<Handlers>, f: FusedHandlers, k: K) {
+function fusedHandlerToNativeHandler<K extends keyof Handlers & keyof FusedHandlers>(h: Partial<Handlers>, f: FusedHandlers, k: K) {
   const fusedHandler = f[k];
   if (fusedHandler) {
     // Sorry, can't type it, need to do some funky stuff.
@@ -290,11 +305,13 @@ type ToAwaitable<F> = F extends (cb: CB<infer R>) => void
 : never;
 
 
+export type Handles = 'self' | 'other' | 'other_with_fallback';
 export type FusedHandlers = {
   [k in StandardHandlers]: ToAwaitable<Handlers[k]>;
 } & {
   write(path: string, fd: number, buffer: Buffer, length: number, position: number): Awaitable<number>;
   read(path: string, fd: number, buffer: Buffer, length: number, position: number): Awaitable<number>;
+  handles(path: string): Awaitable<Handles>
 }
 
 

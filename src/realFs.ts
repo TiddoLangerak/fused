@@ -1,7 +1,7 @@
 import { Dir } from 'node:fs';
 import { open, opendir, FileHandle, lstat, constants, readdir, truncate, chown, readlink, chmod, writeFile, utimes, unlink, rename, symlink, link, mkdir, rmdir } from 'node:fs/promises';
 import { debug } from './debug.js';
-import { FusedHandlers, Stat, Fd } from './handlers.js';
+import { FusedHandlers, Stat, Fd, Handles } from './handlers.js';
 import { ProgramOpts } from './opts.js';
 import { resolver, Resolver } from './path.js';
 
@@ -15,6 +15,7 @@ export class RealFs implements FusedHandlers {
     this.getAbsolutePath = resolver(opts);
   }
 
+  handles = () => 'self' as Handles;
   init = () => { /* Nothing to do */ };
   getattr = (path: string) => lstat(this.getAbsolutePath(path));
   fgetattr = async (path: string, fd: Fd) => {

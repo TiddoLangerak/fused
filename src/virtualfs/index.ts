@@ -28,18 +28,50 @@ const INIT_TIME = new Date();
 
 export type Handler = 'self' | 'other' | 'other_with_fallback';
 
-type InternalFd = {
+class FileFd {
+  readonly type = 'file';
+  readonly path: string;
+  #content: Buffer;
+  #hasPendingContent: boolean = false;
+  #size: number;
+
+  constructor(path: string, content: Buffer, size: number) {
+    this.path = path;
+    this.#content = content;
+    this.#size = size;
+  }
+
+  set content(b: Buffer) {
+    this.#content = b;
+    this.#hasPendingContent = true;
+  }
+
+  get content() {
+    return this.#content;
+  }
+
+  set size(size: number) {
+    this.#size = size;
+    this.#hasPendingContent = true;
+  }
+
+  get size() {
+    return this.#size;
+  }
+
+  get hasPendingContent() {
+    return this.#hasPendingContent;
+  }
+
+
+}
+
+type DirFd = {
   type: 'dir',
   path: string
-} | {
-  // TODO: this should probably be turned into a class
-  type: 'file',
-  path: string,
-  content: Buffer,
-  hasPendingContent: boolean,
-  size: number
-};
+}
 
+type InternalFd = FileFd | DirFd;
 
 export class VirtualFs implements FusedHandlers {
   #handler: VirtualFileHandler;
@@ -101,10 +133,10 @@ export class VirtualFs implements FusedHandlers {
     }
   };
 
-  fgetattr = (path: string, fd: number) : Awaitable<Stat> => {
+  fgetattr = (path: string, _fd: number) : Awaitable<Stat> => {
     return this.getattr(path);
   };
-  flush = async (path: string, fd: number) : Promise<void> => {
+  flush = async (_path: string, fd: number) : Promise<void> => {
     const file = this.#getFile(fd);
     if (file.hasPendingContent) {
       await this.#handler.writeFile(file.path, file.content.subarray(0, file.size));
@@ -135,7 +167,6 @@ export class VirtualFs implements FusedHandlers {
   ftruncate = async (path: string, fd: number, size: number) : Promise<void> => {
     const file = this.#getFile(fd);
     file.size = Math.min(file.size, size);
-    file.hasPendingContent = true;
     // TODO: I don't understand why/if this is needed.
     // There's something weird on linux.
     // Linux seems to cache stats internally, and certain file operations seems to invalidate this cache.
@@ -145,19 +176,19 @@ export class VirtualFs implements FusedHandlers {
     // For now, we'll flush after truncate, when internet we can investigate online
     await this.flush(path, fd);
   };
-  readlink = (a: string) : Awaitable<string> => {
+  readlink = () : Awaitable<string> => {
     // TODO: better error
     throw new IOError(Fuse.EINVAL, "Virtual files don't support symlink");
   };
-  chown = (a: string, b: number, c: number) : Awaitable<void> => {
+  chown = () : Awaitable<void> => {
     // TODO: better error
     throw new IOError(Fuse.EINVAL, "Virtual files can't be chown-ed");
   };
-  chmod = (a: string, b: number) : Awaitable<void> => {
+  chmod = () : Awaitable<void> => {
     // TODO: better error
     throw new IOError(Fuse.EINVAL, "Virtual files can't be chmod-ed");
   };
-  mknod = async (path: string, mode: number, dev: string) : Promise<void> => {
+  mknod = async (path: string, _mode: number, _dev: string) : Promise<void> => {
     // TODO: test
     await this.#handler.writeFile(path, Buffer.alloc(0));
   };
@@ -170,60 +201,53 @@ export class VirtualFs implements FusedHandlers {
       ? Buffer.from(content)
       : content;
 
-    return this.#fdMapper.insert({ type: 'file', path, content: buff, hasPendingContent: false, size: buff.length });
+    return this.#fdMapper.insert(new FileFd(path, buff, buff.length));
   }
-  opendir = (path: string, flags: number) => this.#fdMapper.insert({ type: 'dir', path });
-  release = (path: string, fd: number) => this.#fdMapper.clear(fd);
-  releasedir = (path: string, fd: number) => this.#fdMapper.clear(fd);
+  opendir = (path: string, _flags: number) => this.#fdMapper.insert({ type: 'dir', path });
+  release = (_path: string, fd: number) => this.#fdMapper.clear(fd);
+  releasedir = (_path: string, fd: number) => this.#fdMapper.clear(fd);
   utimens = (path: string, atime: number, mtime: number) : Awaitable<void> => {
     if (this.#handler.updateModificationTime) {
       const modificationTime = new Date(Math.max(atime, mtime));
       this.#handler.updateModificationTime(path, modificationTime);
     }
   };
-  unlink = async (path: string) : Promise<void> => {
-    // TODO: test
-    if (this.#handler.remove) {
-      await this.#handler.remove(path);
-    } else {
-      // TODO: different error
-      throw new IOError(Fuse.EINVAL, "Cannot remove virtual file");
-    }
+  unlink = () : Awaitable<void> => {
+    throw new IOError(Fuse.EINVAL, "Cannot remove virtual file");
   };
-  rename = (from: string, to: string) : Awaitable<void> => {
+  rename = () : Awaitable<void> => {
     // Renaming virtual files is sketchy and risks data loss.
     // E.g. renaming a real file into a virtual file could lose the file.
     // For now, better to just not support renaming.
     // TODO: different error
     throw new IOError(Fuse.EINVAL, "Cannot rename from/to virtual files");
   };
-  symlink = (a: string, b: string) : Awaitable<void> => {
+  symlink = () : Awaitable<void> => {
     // TODO: check error code
     throw new IOError(Fuse.EINVAL, "Virtual files don't support symlink");
   };
-  link = (a: string, b: string) : Awaitable<void> => {
+  link = () : Awaitable<void> => {
     // TODO: check error code
     throw new IOError(Fuse.EINVAL, "Virtual files don't support links");
   };
   mkdir = async (path: string, mode: number) : Promise<void> => {
     await mkdir(this.#resolver(path), { recursive: true, mode });
   };
-  rmdir = (a: string) : Awaitable<void> => {
+  rmdir = () : Awaitable<void> => {
     throw new IOError(Fuse.EPERM, "Cannot remove virtual directory");
   };
-  write = async (path: string, fd: number, buffer: Buffer, length: number, position: number): Promise<number> => {
+  write = async (_path: string, fd: number, buffer: Buffer, length: number, position: number): Promise<number> => {
     const file = this.#getFile(fd);
 
     const neededBufferSize = position+length;
     if (file.content.length < neededBufferSize) {
-      file.content = this.#resizeBuffer(file.content, neededBufferSize, length);
+      file.content = this.#resizeBuffer(file.content, neededBufferSize);
     }
 
     file.size = Math.max(file.size, neededBufferSize);
-    file.hasPendingContent = true;
     return buffer.copy(file.content, position, 0, length);
   }
-  read = (path: string, fd: number, buffer: Buffer, length: number, position: number): Awaitable<number> => {
+  read = (_path: string, fd: number, buffer: Buffer, length: number, position: number): Awaitable<number> => {
     const file = this.#getFile(fd);
     const endpos = Math.min(position + length, file.content.length);
 
@@ -241,7 +265,7 @@ export class VirtualFs implements FusedHandlers {
     return file;
   }
 
-  #resizeBuffer(buf: Buffer, desiredSize: number, chunkSize: number): Buffer {
+  #resizeBuffer(buf: Buffer, desiredSize: number): Buffer {
     const newSize = Math.max(desiredSize, buf.length * 2);
     const newBuf = Buffer.alloc(newSize);
     buf.copy(newBuf, 0, 0, buf.length);
