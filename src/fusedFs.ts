@@ -54,12 +54,15 @@ export const fuseLayers = (baseFs: FusedFs, overlayFs: FusedFs, fdMapper: FdMapp
         case 'other_with_fallback':
           // We want to ignore at most 1 enoent.
           // If both enoent, then we abort
-          const vRes = overlayFs.readdir(path);
+          const oProm = overlayFs.readdir(path);
           try {
-            const rRes = await baseFs.readdir(path);
-            return [...rRes, ...(await ignoreEnoent(vRes))];
+            const bRes = await baseFs.readdir(path);
+            const oRes = (await ignoreEnoent(oProm))
+              // Filters out overlap
+              .filter(v => !bRes.includes(v));
+            return [...bRes, ...oRes];
           } catch (e) {
-            return await vRes;
+            return await oProm;
           }
       }
     }

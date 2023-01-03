@@ -24,7 +24,7 @@ const sourceFiles = {
 
 const virtualFiles = () => [
     new InMemoryFileHandler('/foo/bar', 'content'),
-//    new InMemoryFileHandler('/foo/baz', 'also content')
+    new InMemoryFileHandler('/foo/baz', 'also content')
 ];
 
 const { mnt, src, paths, init, cleanup, checkContents } = testFs(
@@ -53,7 +53,7 @@ describe('fused', () => {
       it('shows the correct folder content at root', () =>
          check('/', ["dir", "file", "foo"]));
       it('shows the correct folder content for virtual folders', () =>
-         check('/foo', ["bar"]));
+         check('/foo', ["bar", "baz"]));
       it('shows the correct folder content for folders without virtual content', () =>
          check("/dir", ["foo"]));
     }
@@ -218,8 +218,7 @@ describe('fused', () => {
     describe("real -> virtual", () => {
       it("Is not supported", () => checkUnsupported("/file", "/foo/bar"));
     });
-      // TODO: fix test, currently only have 1 virtual file
-    describe.skip("virtual -> virtual", () => {
+    describe("virtual -> virtual", () => {
       it("Is not supported", () => checkUnsupported("/foo/bar", "/foo/baz"));
     });
   });
