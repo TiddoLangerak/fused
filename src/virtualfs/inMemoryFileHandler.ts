@@ -1,7 +1,6 @@
 import { basename, dirname, relative, sep } from 'path';
 import { assert } from '../assert.js';
 import { FileContent, MiniStat, VirtualFileHandler } from "./virtualFile.js";
-import { Awaitable } from '../awaitable.js';
 import { FileNotFoundError } from '../error.js';
 
 export class InMemoryFileHandler implements VirtualFileHandler {
@@ -29,7 +28,7 @@ export class InMemoryFileHandler implements VirtualFileHandler {
     }
     return 'other';
   }
-  listFiles(folder: string): Awaitable<string[]>{
+  listFiles(folder: string): string[]{
     if (this.#folder === folder) {
       return [this.#file];
     } else if (this.#isAncestor(folder)) {
@@ -38,16 +37,16 @@ export class InMemoryFileHandler implements VirtualFileHandler {
 
     return [];
   }
-  readFile(path: string): Awaitable<FileContent> {
+  readFile(path: string): FileContent {
     assert(path === this.#path, new FileNotFoundError(path));
     return this.content;
   }
-  writeFile(path: string, content: FileContent): Awaitable<void> {
+  writeFile(path: string, content: FileContent): void {
     assert(path === this.#path, new FileNotFoundError(path));
     this.content = content;
     this.#modificationTime = new Date();
   }
-  stat(path: string): Awaitable<MiniStat> {
+  stat(path: string): MiniStat {
     if (path === this.#path) {
       return {
         type: 'file',

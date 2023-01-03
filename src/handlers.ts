@@ -187,7 +187,7 @@ type SupportedOperations = Exclude<keyof Handlers, 'access' | 'create' | 'fsyncd
 type StandardHandlers = Exclude<SupportedOperations, 'read' | 'write'>;
 const standardHandlers: StandardHandlers[] = [
     'init',
-    //'access', // TODO: we don't support access, because we rely on defaultPermissions. See: https://libfuse.github.io/doxygen/structfuse__operations.html#a2248db35e200265f7fb9a18348229858
+    //'access', // we don't support access, because we rely on defaultPermissions. See: https://libfuse.github.io/doxygen/structfuse__operations.html#a2248db35e200265f7fb9a18348229858
     'getattr',
     'fgetattr',
     'flush',
@@ -282,8 +282,7 @@ function handleError(e: any): number {
     return e.errno;
   } else {
     console.error("Unexpected error", e);
-    // When in doubt, file not found
-    return Fuse.ENOENT; // TODO
+    return Fuse.EIO;
   }
 }
 

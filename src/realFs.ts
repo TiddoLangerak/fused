@@ -59,7 +59,6 @@ export class RealFs implements FusedFs {
   readlink = (path: string) => readlink(this.getAbsolutePath(path));
   chown = (path: string, uid: number, gid: number) => chown(this.getAbsolutePath(path), uid, gid);
   chmod = (path: string, mode: number) => chmod(this.getAbsolutePath(path), mode);
-      // TODO: existance checking?
   mknod = async (path: string, mode: number, _dev: string) => {
     try {
       await lstat(this.getAbsolutePath(path));
@@ -71,10 +70,11 @@ export class RealFs implements FusedFs {
       throw e;
     }
   }
-  //setxattr TODO: only osx, no native node support
-  //getxattr TODO: only osx, no native node support
-  //listxattr TODO: only osx, no native node support
-  //removexattr TODO: only osx, no native node support
+  //TODO: xattr is only on osx, no native node support
+  //setxattr
+  //getxattr
+  //listxattr
+  //removexattr
   open = async(path: string, flags: number | string) => {
     const handle = await open(this.getAbsolutePath(path), flags);
     this.#openFiles.set(handle.fd, handle);

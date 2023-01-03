@@ -58,6 +58,7 @@ declare module 'fuse-native' {
     static EACCES: number;
     static ENOSYS: number;
     static EEXIST: number;
+    static EIO: number;
     constructor(mnt: string, handlers: Partial<Handlers>, opts?: Partial<Options>)
     mount(cb: (err: any) => unknown): unknown;
     close(cb: (err: any) => unknown): unknown;

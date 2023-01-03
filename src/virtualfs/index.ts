@@ -102,7 +102,6 @@ export class VirtualFs implements FusedFs {
         size: 0,
         // RWX for user | RWX for group | R for other | X for other | Dir
         mode: S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH | S_IFDIR,
-        // TODO: instead, should probably inherit from parent
         uid: this.#rootUid,
         gid: this.#rootGid,
       }
@@ -121,7 +120,6 @@ export class VirtualFs implements FusedFs {
           ctime: INIT_TIME,
           size: ministat.size,
           mode: execMode | writeMode | readMode | S_IFREG,
-          // TODO: instead, should probably inherit from parent
           uid: this.#rootUid,
           gid: this.#rootUid,
         }
@@ -175,7 +173,6 @@ export class VirtualFs implements FusedFs {
     throw new IOError(Fuse.EACCES, "Virtual files can't be chmod-ed");
   };
   mknod = async (path: string, _mode: number, _dev: string) : Promise<void> => {
-    // TODO: test
     await this.#handler.writeFile(path, Buffer.alloc(0));
   };
   open = async (path: string, _mode: number) => {
