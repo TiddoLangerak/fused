@@ -23,15 +23,13 @@ export type FusedHandle = {
 };
 
 export async function main(opts: ProgramOpts, files: VirtualFileHandler[]): Promise<FusedHandle> {
-  assert(files.length === 1, "TODO: not yet implemented support for multiple handlers");
-
   await validateOpts(opts);
   const realFs = new RealFs(opts);
   const { gid, uid } = await realFs.getattr('/');
 
-  const virtualFs = new VirtualFs(files[0], opts, gid, uid);
+  const overlays = files.map(file => new VirtualFs(file, opts, gid, uid));
 
-  const handlers = makeHandlers(new RealFs(opts), [virtualFs]);
+  const handlers = makeHandlers(new RealFs(opts), overlays);
 
   const fuse = new Fuse(
     opts.mountPath,
