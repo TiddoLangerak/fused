@@ -155,9 +155,7 @@ export class VirtualFs implements FusedFs {
       } else {
         original.copy(newBuf);
       }
-      // TODO: this is broken. It should have a writeFile
-      // First need test.
-      // Can't be tested in e2e. YOLO?
+      this.#handler.writeFile(path, newBuf);
     }
   };
   ftruncate = async (path: string, fd: number, size: number) : Promise<void> => {
