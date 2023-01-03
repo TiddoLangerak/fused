@@ -11,3 +11,8 @@ export class FileNotFoundError extends IOError {
     super(Fuse.ENOENT, `File not found: ${file}`);
   }
 }
+
+export function isEnoent(e: unknown): boolean {
+  return typeof e === 'object' && !!e && (e as any).errno === Fuse.ENOENT;
+}
+

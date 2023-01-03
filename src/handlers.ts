@@ -5,16 +5,13 @@ import { debug } from "./debug.js";
 import { Awaitable } from "./awaitable.js";
 import { FdMapper } from "./fd.js";
 import { dirname } from "path";
+import { isEnoent } from "./error.js";
 export { Stat };
 export type Fd = number;
 
 type AwaitableFunc<A extends any[], R> = ((...args: A) => Awaitable<R>);
 
 type Readdir = (path: string) => Awaitable<string[]>;
-
-function isEnoent(e: unknown): boolean {
-  return typeof e === 'object' && !!e && (e as any).errno === Fuse.ENOENT;
-}
 
 async function baseWithFallback<A extends any[], R>(base: AwaitableFunc<A, R>, overlay: AwaitableFunc<A, R>, args: A): Promise<R> {
   try {
