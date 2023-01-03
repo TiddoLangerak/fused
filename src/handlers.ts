@@ -13,7 +13,7 @@ export const makeHandlers = (realFs: RealFs, overlays: VirtualFs[]): Partial<Han
   const fdMapper = new FdMapper<[FusedFs, Fd]>();
 
   const fused = overlays
-    .reduce((base: FusedFs, overlay) => fuseLayers(base, overlay, fdMapper), realFs);
+    .reduceRight((base: FusedFs, overlay) => fuseLayers(base, overlay, fdMapper), realFs);
 
   return mapHandlers(fused);
 };
