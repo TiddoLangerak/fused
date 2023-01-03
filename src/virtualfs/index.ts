@@ -9,7 +9,7 @@ import { Awaitable } from '../awaitable.js';
 import { IOError } from '../error.js';
 import { FdMapper } from '../fd.js';
 import { FusedFs } from '../handlers.js';
-import { resolver, Resolver } from '../path.js';
+import { srcPathResolver, SrcPathResolver } from '../path.js';
 import { VirtualFileHandler } from './virtualFile.js';
 
 /**
@@ -77,13 +77,13 @@ export class VirtualFs implements FusedFs {
   #rootGid: number;
   #rootUid: number;
   #fdMapper = new FdMapper<InternalFd>();
-  #resolver: Resolver;
+  #resolver: SrcPathResolver;
 
   constructor(handler: VirtualFileHandler, opts: VirtualFsOpts, rootGid: number, rootUid: number) {
     this.#handler = handler;
     this.#rootGid = rootGid;
     this.#rootUid = rootUid;
-    this.#resolver = resolver(opts);
+    this.#resolver = srcPathResolver(opts);
   }
   handles = (path: string) => this.#handler.handles(path)
 

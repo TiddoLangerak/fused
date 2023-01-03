@@ -1,18 +1,20 @@
+import Fuse from 'fuse-native';
 import { Dir } from 'node:fs';
 import { open, opendir, FileHandle, lstat, constants, readdir, truncate, chown, readlink, chmod, writeFile, utimes, unlink, rename, symlink, link, mkdir, rmdir } from 'node:fs/promises';
 import { debug } from './debug.js';
+import { IOError, isEnoent } from './error.js';
 import { FusedFs, Fd, Handles } from './handlers.js';
 import { ProgramOpts } from './opts.js';
-import { resolver, Resolver } from './path.js';
+import { srcPathResolver, SrcPathResolver } from './path.js';
 
 export class RealFs implements FusedFs {
-  getAbsolutePath: Resolver;
+  getAbsolutePath: SrcPathResolver;
   #openFiles: Map<Fd, FileHandle> = new Map();
   #openDirs: Map<Fd, Dir> = new Map();
   #dirFdCount: Fd = 1;
 
   constructor(opts: ProgramOpts) {
-    this.getAbsolutePath = resolver(opts);
+    this.getAbsolutePath = srcPathResolver(opts);
   }
 
   handles = () => 'self' as Handles;
@@ -51,14 +53,24 @@ export class RealFs implements FusedFs {
     if (file) {
       file.truncate(size);
     } else {
-      throw new Error("file not open"); // TODO: better error
+      throw new IOError(Fuse.EBADF, "File not open");
     }
   }
   readlink = (path: string) => readlink(this.getAbsolutePath(path));
   chown = (path: string, uid: number, gid: number) => chown(this.getAbsolutePath(path), uid, gid);
   chmod = (path: string, mode: number) => chmod(this.getAbsolutePath(path), mode);
       // TODO: existance checking?
-  mknod = (path: string, mode: number, _dev: string) => writeFile(this.getAbsolutePath(path), Buffer.alloc(0), {mode});
+  mknod = async (path: string, mode: number, _dev: string) => {
+    try {
+      await lstat(this.getAbsolutePath(path));
+      throw new IOError(Fuse.EEXIST, "File already exists");
+    } catch (e) {
+      if (isEnoent(e)) {
+        return await writeFile(this.getAbsolutePath(path), Buffer.alloc(0), {mode});
+      }
+      throw e;
+    }
+  }
   //setxattr TODO: only osx, no native node support
   //getxattr TODO: only osx, no native node support
   //listxattr TODO: only osx, no native node support

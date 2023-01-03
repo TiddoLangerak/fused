@@ -17,10 +17,9 @@ export type ResolverOpts = {
   mountPath: string;
 }
 
-// TODO: rename
-export type Resolver = (pathSegment: string) => string;
+export type SrcPathResolver = (pathSegment: string) => string;
 
-export const resolver = ({ sourcePath, mountPath } : ResolverOpts): Resolver => (pathSegment: string) => {
+export const srcPathResolver = ({ sourcePath, mountPath } : ResolverOpts): SrcPathResolver => (pathSegment) => {
   const path = resolve(sourcePath, `./${pathSegment}`);
   if (!path.startsWith(sourcePath)) {
     throw new PathNotInSourceError();
