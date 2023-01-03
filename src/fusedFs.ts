@@ -89,8 +89,7 @@ export const fuseLayers = (baseFs: FusedFs, overlayFs: FusedFs, fdMapper: FdMapp
       const downstream = fdMapper.get(fd);
       if (downstream) {
         const [handler, mappedFd] = downstream;
-        // TODO: not the nicest... perhaps we could improve?
-        const mappedArgs: A = [path, mappedFd, ...rest] as A;
+        const mappedArgs = [path, mappedFd, ...rest] as A;
         if (handler === baseFs) {
           return baseFn(...mappedArgs);
         } else {
@@ -146,7 +145,6 @@ export const fuseLayers = (baseFs: FusedFs, overlayFs: FusedFs, fdMapper: FdMapp
       return await baseRename(from, to);
     },
     mkdir: (baseMkdir, overlayMkdir) => async (path: string, mode: number) => {
-      // TODO: refactor this into something nice?
       const parent = dirname(path);
       switch (await overlayFs.handles(parent)) {
         case 'self':
@@ -181,7 +179,7 @@ export const fuseLayers = (baseFs: FusedFs, overlayFs: FusedFs, fdMapper: FdMapp
 
   const combinedFs: FusedFs = Object.fromEntries(
     Object.entries(mappers)
-      // TODO: better typing
+      // Impossible to type properly, so any it is
       .map(([ key, val ]) => [key, val((baseFs as any)[key], (overlayFs as any)[key])])
   ) as FusedFs;
 

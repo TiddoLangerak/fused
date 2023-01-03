@@ -90,7 +90,7 @@ function fusedHandlerToNativeHandler<K extends keyof Handlers & keyof FusedFs>(h
     h[k] = (...args: any[]) => {
       const cb = args.pop();
       debug(k, ...args);
-      // TODO: get rid of any
+      // Tricky to type this properly... Giving up
       $(cb, () => (fusedHandler as any)(...args));
     };
   }
