@@ -5,7 +5,6 @@ import { Handles } from "../handlers.js";
 export type FileContent = string | Buffer;
 export { Stat };
 
-// TODO: enhance
 export type MiniStat = {
   type: 'file',
   writeable: boolean,
@@ -22,7 +21,6 @@ export type MiniStat = {
 export type VirtualFileHandler = {
   handles(path: string): Awaitable<Handles>;
   listFiles(folder: string): Awaitable<string[]>;
-  // TODO: error handling
   readFile(path: string): Awaitable<FileContent>;
   writeFile(path: string, content: Buffer): Awaitable<void>;
   stat: (path: string) => Awaitable<MiniStat>;
