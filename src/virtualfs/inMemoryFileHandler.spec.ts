@@ -39,7 +39,6 @@ describe('inMemoryFileHandler', () => {
     });
     it('throws if the passed in folder has the wrong path',  () => {
       expect(() => handler.readFile('foo'))
-      .rejects
       .toThrow();
     });
   });
@@ -52,7 +51,6 @@ describe('inMemoryFileHandler', () => {
     });
     it('throws if the passed in folder has the wrong path',  () => {
       expect(() => handler.writeFile('foo', 'something new'))
-      .rejects
       .toThrow();
     });
   });

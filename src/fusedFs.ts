@@ -6,6 +6,9 @@ import { FdMapper } from "./fd.js";
 
 export type Fd = number;
 
+// TODO:
+// - We might want to eject the clever types, and just write everything full out
+
 // - we don't support access, because we rely on defaultPermissions. See: https://libfuse.github.io/doxygen/structfuse__operations.html#a2248db35e200265f7fb9a18348229858
 // - We don't support "create" because we don't have to, and can't do anything particular clever there.
 // - We don't support fsyncdir because we have nothing to sync
