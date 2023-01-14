@@ -1,6 +1,6 @@
 import { resolve } from 'path';
 import { FusedHandle } from './lib.js';
-import { InMemoryFileHandler } from './virtualfs/inMemoryFileHandler.js';
+import { InMemoryFileHandler } from './handlers/inMemoryFileHandler.js';
 import * as fs from 'node:fs/promises';
 import { Stats } from 'node:fs';
 import { S_IFREG, S_IRGRP, S_IROTH, S_IRUSR, S_IWGRP, S_IWUSR } from 'node:constants';

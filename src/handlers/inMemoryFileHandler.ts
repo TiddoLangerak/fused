@@ -1,6 +1,6 @@
 import { basename, dirname, relative, sep } from 'path';
 import { assert } from '../assert.js';
-import { FileContent, MiniStat, VirtualFileHandler } from "./virtualFile.js";
+import { FileContent, MiniStat, VirtualFileHandler } from "../virtualfs/virtualFile.js";
 import { FileNotFoundError, IOError } from '../error.js';
 import Fuse from 'fuse-native';
 

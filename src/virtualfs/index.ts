@@ -1,4 +1,3 @@
-export { InMemoryFileHandler } from './inMemoryFileHandler.js';
 export { VirtualFileHandler } from './virtualFile.js';
 
 import Fuse, { Stat } from 'fuse-native';
