@@ -2,13 +2,14 @@
   "name": "fused",
   "version": "1.0.0",
   "description": "",
-  "main": "src/index.ts",
+  "bin": "src/bin.ts",
+  "main": "src/lib.ts",
   "type": "module",
   "keywords": [],
   "author": "",
   "license": "ISC",
   "scripts": {
-    "start": "ts-node-esm src/index.ts",
+    "start": "ts-node-esm src/bin.ts",
     "test": "jest",
     "check": "tsc --noEmit -p ./tsconfig.strict.json"
   },
